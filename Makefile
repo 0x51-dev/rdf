@@ -1,7 +1,7 @@
-.PHONY: test test-cover gen gen-ic fmt
+.PHONY: test fmt
 
 test:
-	go test -v -cover ./... --count=5
+	go test -v -cover ./...
 
 fmt:
 	go mod tidy

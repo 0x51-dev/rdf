@@ -9,75 +9,89 @@ var (
 		Name: "Document",
 		Value: op.ZeroOrMore{Value: op.And{
 			op.Optional{Value: op.Or{Triple, Comment}},
-			op.EndOfLine{},
+			OWhitespace, op.EndOfLine{},
 		}},
 	}
 	Triple = op.Capture{
 		Name: "Triple",
 		Value: op.And{
 			OWhitespace,
-			Subject, Whitespace,
-			Predicate, Whitespace,
+			Subject, OWhitespace,
+			Predicate, OWhitespace,
 			Object, OWhitespace,
-			'.',
-			op.Optional{Value: op.And{
-				Whitespace,
-				Comment,
-			}},
+			'.', op.Optional{Value: Comment},
 		},
 	}
-	Subject   = op.Or{IRIReference, BlankNodeLabel}
-	Predicate = IRIReference
-	Object    = op.Or{IRIReference, BlankNodeLabel, Literal}
-	Literal   = op.And{StringLiteral, op.Optional{Value: op.Or{
-		op.And{"^^", IRIReference},
-		LanguageTag,
-	}}}
+	Subject = op.Capture{
+		Name:  "Subject",
+		Value: op.Or{IRIReference, BlankNodeLabel},
+	}
+	Predicate = op.Capture{
+		Name:  "Predicate",
+		Value: IRIReference,
+	}
+	Object = op.Capture{
+		Name:  "Object",
+		Value: op.Or{IRIReference, BlankNodeLabel, Literal},
+	}
+	Literal = op.Capture{
+		Name: "Literal",
+		Value: op.And{StringLiteral, op.Optional{Value: op.Or{
+			op.And{"^^", IRIReference},
+			LanguageTag,
+		}}},
+	}
 
 	OWhitespace = op.ZeroOrMore{Value: op.Or{rune(0x20), rune(0x09)}}
 	Whitespace  = op.OneOrMore{Value: op.Or{rune(0x20), rune(0x09)}}
 	Comment     = op.And{
 		OWhitespace,
 		'#',
-		op.ZeroOrMore{Value: op.And{op.Not{Value: op.Or{rune(0x0A), rune(0x0D)}}, op.Any{}}},
+		op.ZeroOrMore{Value: op.AnyBut{Value: op.Or{rune(0x0A), rune(0x0D)}}},
 	}
-	LanguageTag = op.Capture{
-		Name: "LanguageTag",
-		Value: op.And{
-			'@',
-			op.OneOrMore{Value: op.Or{op.RuneRange{Min: 'a', Max: 'z'}, op.RuneRange{Min: 'A', Max: 'Z'}}},
-			op.ZeroOrMore{Value: op.And{
-				'-',
-				op.OneOrMore{Value: op.Or{op.RuneRange{Min: 'a', Max: 'z'}, op.RuneRange{Min: 'A', Max: 'Z'}, op.RuneRange{Min: '0', Max: '9'}}}, // [a-zA-Z0-9]+
-			}},
+	LanguageTag = op.And{
+		'@',
+		op.Capture{
+			Name: "LanguageTag",
+			Value: op.And{
+				op.OneOrMore{Value: op.Or{op.RuneRange{Min: 'a', Max: 'z'}, op.RuneRange{Min: 'A', Max: 'Z'}}},
+				op.ZeroOrMore{Value: op.And{
+					'-',
+					op.OneOrMore{Value: op.Or{op.RuneRange{Min: 'a', Max: 'z'}, op.RuneRange{Min: 'A', Max: 'Z'}, op.RuneRange{Min: '0', Max: '9'}}}, // [a-zA-Z0-9]+
+				}},
+			},
 		},
 	}
-	IRIReference = op.Capture{
-		Name: "IRIReference",
-		Value: op.And{
-			'<',
-			op.ZeroOrMore{Value: op.Or{
-				op.And{op.Not{Value: op.Or{
-					op.RuneRange{Min: 0x00, Max: 0x20},
-					'<', '>', '"', '{', '}', '|', '^', '`', '\\',
-				}}, op.Any{}},
-				UnicodeCharacter,
-			}},
-			'>',
+	IRIReference = op.And{
+		'<',
+		op.Capture{
+			Name: "IRIReference",
+			Value: op.And{
+				op.ZeroOrMore{Value: op.Or{
+					op.AnyBut{Value: op.Or{
+						op.RuneRange{Min: 0x00, Max: 0x20},
+						'<', '>', '"', '{', '}', '|', '^', '`', '\\',
+					}},
+					UnicodeCharacter,
+				}},
+			},
 		},
+		'>',
 	}
-	StringLiteral = op.Capture{
-		Name: "StringLiteral",
-		Value: op.And{
-			'"',
-			op.ZeroOrMore{Value: op.Or{
-				op.And{op.Not{Value: op.Or{
-					rune(0x22), rune(0x5C), rune(0x0A), rune(0x0D),
-				}}, op.Any{}},
-				EscapedCharacter, UnicodeCharacter,
-			}},
-			'"',
+	StringLiteral = op.And{
+		'"',
+		op.Capture{
+			Name: "StringLiteral",
+			Value: op.And{
+				op.ZeroOrMore{Value: op.Or{
+					op.AnyBut{Value: op.Or{
+						rune(0x22), rune(0x5C), rune(0x0A), rune(0x0D),
+					}},
+					EscapedCharacter, UnicodeCharacter,
+				}},
+			},
 		},
+		'"',
 	}
 	BlankNodeLabel = op.Capture{
 		Name: "BlankNodeLabel",

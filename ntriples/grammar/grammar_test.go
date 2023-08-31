@@ -1,25 +1,12 @@
-package grammar
+package grammar_test
 
 import (
 	_ "embed"
+	. "github.com/0x51-dev/rdf/ntriples/grammar"
 	"github.com/0x51-dev/upeg/parser"
 	"github.com/0x51-dev/upeg/parser/op"
 	"testing"
 )
-
-func TestPN_CHARS(t *testing.T) {
-	for _, char := range []rune{
-		'A', 'Z', 'a', 'z', '0', '9',
-	} {
-		p, err := parser.New([]rune{char})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := p.Parse(op.And{PN_CHARS, op.EOF{}}); err != nil {
-			t.Fatal(err)
-		}
-	}
-}
 
 func TestBlankNodeLabel(t *testing.T) {
 	for _, test := range []string{
@@ -52,6 +39,34 @@ func TestObject(t *testing.T) {
 			t.Fatal(err)
 		}
 		if _, err := p.Parse(op.And{Object, op.EOF{}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestPN_CHARS(t *testing.T) {
+	for _, char := range []rune{
+		'A', 'Z', 'a', 'z', '0', '9',
+	} {
+		p, err := parser.New([]rune{char})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := p.Parse(op.And{PN_CHARS, op.EOF{}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestPN_CHARS_BASE(t *testing.T) {
+	for _, char := range []rune{
+		'A', 'Z', 'a', 'z',
+	} {
+		p, err := parser.New([]rune{char})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := p.Parse(op.And{PN_CHARS_BASE, op.EOF{}}); err != nil {
 			t.Fatal(err)
 		}
 	}
