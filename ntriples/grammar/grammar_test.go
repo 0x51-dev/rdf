@@ -46,7 +46,7 @@ func TestObject(t *testing.T) {
 
 func TestPN_CHARS(t *testing.T) {
 	for _, char := range []rune{
-		'A', 'Z', 'a', 'z', '0', '9',
+		'A', 'Z', 'a', 'z', '0', '9', ':',
 	} {
 		p, err := parser.New([]rune{char})
 		if err != nil {
@@ -54,6 +54,17 @@ func TestPN_CHARS(t *testing.T) {
 		}
 		if _, err := p.Parse(op.And{PN_CHARS, op.EOF{}}); err != nil {
 			t.Fatal(err)
+		}
+	}
+	for _, char := range []rune{
+		'.',
+	} {
+		p, err := parser.New([]rune{char})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := p.Parse(op.And{PN_CHARS, op.EOF{}}); err == nil {
+			t.Fatal(char)
 		}
 	}
 }
@@ -68,6 +79,17 @@ func TestPN_CHARS_BASE(t *testing.T) {
 		}
 		if _, err := p.Parse(op.And{PN_CHARS_BASE, op.EOF{}}); err != nil {
 			t.Fatal(err)
+		}
+	}
+	for _, char := range []rune{
+		':',
+	} {
+		p, err := parser.New([]rune{char})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := p.Parse(op.And{PN_CHARS_BASE, op.EOF{}}); err == nil {
+			t.Fatal(char)
 		}
 	}
 }

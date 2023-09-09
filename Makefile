@@ -8,3 +8,6 @@ fmt:
 	gofmt -s -w .
 	goarrange run -r .
 	golangci-lint run ./...
+
+report:
+	TEST_SUITE_REPORT=true go test ./...

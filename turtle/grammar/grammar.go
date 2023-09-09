@@ -4,6 +4,7 @@ import (
 	nt "github.com/0x51-dev/rdf/ntriples/grammar"
 	"github.com/0x51-dev/upeg/parser"
 	"github.com/0x51-dev/upeg/parser/op"
+	"unicode"
 )
 
 var (
@@ -41,7 +42,7 @@ var (
 	SparqlPrefix = op.Capture{
 		Name: "Prefix",
 		Value: op.And{
-			"PREFIX", nt.Whitespace,
+			CaseInsensitiveString("PREFIX"), nt.Whitespace,
 			op.Capture{Name: "Prefix", Value: PNAME_NS}, nt.Whitespace,
 			nt.IRIReference,
 		},
@@ -49,7 +50,7 @@ var (
 	SparqlBase = op.Capture{
 		Name: "Base",
 		Value: op.And{
-			"BASE", nt.Whitespace,
+			CaseInsensitiveString("BASE"), nt.Whitespace,
 			nt.IRIReference,
 		},
 	}
@@ -118,11 +119,11 @@ var (
 	Object = op.Capture{
 		Name: "Object",
 		Value: op.Or{
+			Literal,
 			IRI,
 			BlankNode,
 			op.Reference{Name: "Collection"},
 			op.Reference{Name: "BlankNodePropertyList"},
-			Literal,
 		},
 	}
 	Literal = op.Capture{
@@ -177,46 +178,36 @@ var (
 		},
 	}
 	PrefixedName = op.Capture{
-		Name:  "PrefixedName",
-		Value: op.Or{PNAME_LN, PNAME_NS},
+		Name: "PrefixedName",
+		Value: op.And{
+			op.Not{Value: "_:"},
+			op.And{PNAME_NS, op.Optional{Value: PN_LOCAL}},
+		},
 	}
 	BlankNode = op.Capture{
 		Name:  "BlankNode",
 		Value: op.Or{nt.BlankNodeLabel, ANON},
 	}
-	PNAME_NS = op.And{
-		// Custom `PN_PREFIX` so ':' is guaranteed to be present.
+	PNAME_NS = op.OneOrMore{Value: op.And{
 		op.Optional{Value: op.And{
-			op.And{
-				nt.PN_CHARS_BASE,
-				op.Optional{Value: op.And{
-					op.ZeroOrMore{Value: op.And{
-						op.Or{nt.PN_CHARS, '.'},
-						op.Peek{Value: op.Or{
-							op.And{
-								nt.PN_CHARS,
-								op.Or{
-									nt.PN_CHARS,
-									'.',
-								},
-							},
-							'.',
-						}},
-					}},
+			nt.PN_CHARS_BASE,
+			op.ZeroOrMore{Value: op.And{
+				op.Not{Value: ':'},
+				op.Or{
+					nt.PN_CHARS,
 					op.And{
-						nt.PN_CHARS,
-						op.Peek{Value: ':'},
+						op.OneOrMore{Value: '.'},
+						op.Peek{Value: op.And{
+							op.Not{Value: ':'},
+							nt.PN_CHARS,
+						}},
 					},
-				}},
-			},
+				},
+			}},
 		}},
 		':',
-	}
-	// PNAME_LN is very ambiguous. Both `PNAME_NS` and `PN_LOCAL` can contain ':', so it will never be clear
-	// where the namespace ends and the local name begins. This is why we have a custom `PNAME_LN` operator.
-	PNAME_LN = PNAME_LNOperator{}
-	pname_ln = op.And{PNAME_NS, PN_LOCAL} // Not usable directly, but used in `PNAME_LN`!
-	Integer  = op.Capture{
+	}}
+	Integer = op.Capture{
 		Name: "Integer",
 		Value: op.And{
 			op.Optional{Value: op.Or{"+", "-"}},
@@ -253,7 +244,7 @@ var (
 	}
 	Exponent = op.And{
 		op.Or{'e', 'E'},
-		op.Optional{Value: op.Or{"+", "-"}},
+		op.Optional{Value: op.Or{'+', '-'}},
 		op.OneOrMore{Value: op.RuneRange{Min: '0', Max: '9'}},
 	}
 	STRING_LITERAL_QUOTE = op.And{
@@ -320,24 +311,16 @@ var (
 		Name:  "Anon",
 		Value: op.And{'[', op.ZeroOrMore{Value: WS}, ']'},
 	}
-	PN_PREFIX = op.And{
-		nt.PN_CHARS_BASE,
-		op.Optional{Value: op.And{
-			op.ZeroOrMore{Value: op.And{
-				op.Or{nt.PN_CHARS, '.'},
-				op.Peek{Value: op.Or{nt.PN_CHARS, '.'}},
-			}},
-			nt.PN_CHARS,
-		}},
-	}
 	PN_LOCAL = op.And{
 		op.Or{nt.PN_CHARS_U, ':', op.RuneRange{Min: '0', Max: '9'}, PLX},
 		op.Optional{Value: op.And{
-			op.ZeroOrMore{Value: op.And{
-				op.Or{nt.PN_CHARS, '.', ':', PLX},
-				op.Peek{Value: op.Or{nt.PN_CHARS, '.', ':', PLX}},
+			op.ZeroOrMore{Value: op.Or{
+				op.And{
+					op.OneOrMore{Value: '.'},
+					op.Peek{Value: op.Or{nt.PN_CHARS, ':', PLX}},
+				},
+				op.Or{nt.PN_CHARS, ':', PLX},
 			}},
-			op.Or{nt.PN_CHARS, ':', PLX},
 		}},
 	}
 	PLX          = op.Or{PERCENT, PN_LOCAL_ESC}
@@ -363,19 +346,21 @@ func NewParser(input []rune) (*parser.Parser, error) {
 	return p, nil
 }
 
-type PNAME_LNOperator struct{}
+// CaseInsensitiveString checks if a string matches a given string, ignoring case.
+type CaseInsensitiveString string
 
-func (P PNAME_LNOperator) Match(start parser.Cursor, p *parser.Parser) (parser.Cursor, error) {
-	end, _ := p.Match(PNAME_NS)
-	p.Reader.Jump(end)
-	c, err := p.Match(PN_LOCAL)
-	if err != nil {
-		p.Reader.Jump(start)
-		return start, err
+func (s CaseInsensitiveString) Match(start parser.Cursor, p *parser.Parser) (parser.Cursor, error) {
+	end := start
+	for _, r := range s {
+		if unicode.ToLower(end.Character()) != unicode.ToLower(r) {
+			p.Reader.Jump(start)
+			return start, p.NewNoMatchError(r, start, end)
+		}
+		end = p.Reader.Next().Cursor()
 	}
-	return c, nil
+	return end, nil
 }
 
-func (P PNAME_LNOperator) String() string {
-	return pname_ln.String()
+func (s CaseInsensitiveString) String() string {
+	return string(s)
 }

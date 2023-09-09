@@ -57,6 +57,20 @@ func TestCollection(t *testing.T) {
 	}
 }
 
+func TestExponent(t *testing.T) {
+	for _, test := range []string{
+		"e0", "e+0", "e-0", "E0", "E+0", "E-0", "E+1",
+	} {
+		p, err := NewParser([]rune(test))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := p.Parse(op.And{Exponent, op.EOF{}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestIRI(t *testing.T) {
 	for _, test := range []string{
 		"<http://a.example/s>",
@@ -97,6 +111,39 @@ func TestInteger(t *testing.T) {
 	}
 }
 
+func TestLiteral(t *testing.T) {
+	for _, test := range []string{
+		`"Green Goblin"`,
+		`"-1.0"^^<http://www.w3.org/2001/XMLSchema#decimal>`,
+		"-1.0", "-123", "123.0", "123.E+1",
+	} {
+		p, err := NewParser([]rune(test))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := p.Parse(op.And{Literal, op.EOF{}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestNumericLiteral(t *testing.T) {
+	for _, test := range []string{
+		"1", "+1", "-1", "+99",
+		".1", "+.1", "-.1", "+.99", "1.1", "+1.1", "-1.1", "+1.99",
+		"1e0", "+1e0", "-1e0", "+99e0", "0.E0", "+0.E0", "-0.E0", "+99.E0",
+		"1e-1", "+1e+1", // etc
+	} {
+		p, err := NewParser([]rune(test))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := p.Parse(op.And{Literal, op.EOF{}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestObjectList(t *testing.T) {
 	for _, test := range []string{
 		`"Green Goblin"`,
@@ -119,49 +166,11 @@ func TestObjectList(t *testing.T) {
 	}
 }
 
-func TestPrefixedName(t *testing.T) {
-	for _, test := range []string{
-		"p:", "p:p",
-	} {
-		p, err := NewParser([]rune(test))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := p.Parse(op.And{PrefixedName, op.EOF{}}); err != nil {
-			t.Fatal(err)
-		}
-	}
-}
-
-func TestPNAME_LN(t *testing.T) {
-	for _, test := range []string{
-		"rel:enemyOf", "foaf:name",
-	} {
-		p, err := NewParser([]rune(test))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := p.Parse(op.And{PNAME_LN, op.EOF{}}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	for _, test := range []string{
-		"rel:",
-	} {
-		p, err := NewParser([]rune(test))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := p.Parse(op.And{PNAME_LN, op.EOF{}}); err == nil {
-			t.Fatal(test)
-		}
-	}
-}
-
 func TestPNAME_NS(t *testing.T) {
 	for _, test := range []string{
 		"rdf:", "rdfs:", "foaf:", "rel:",
 		"a:", "a.a:", "a::", ":", "a:a::a:",
+		"a·̀ͯ‿.⁀:",
 	} {
 		p, err := NewParser([]rune(test))
 		if err != nil {
@@ -173,6 +182,7 @@ func TestPNAME_NS(t *testing.T) {
 	}
 	for _, test := range []string{
 		"rdf", "rdfs", "foaf", "rel", "rdf:a",
+		"invalid.",
 	} {
 		p, err := NewParser([]rune(test))
 		if err != nil {
@@ -184,25 +194,9 @@ func TestPNAME_NS(t *testing.T) {
 	}
 }
 
-func TestLiteral(t *testing.T) {
-	for _, test := range []string{
-		`"Green Goblin"`,
-		`"-1.0"^^<http://www.w3.org/2001/XMLSchema#decimal>`,
-		"-1.0", "-123", "123.0", "123.E+1",
-	} {
-		p, err := NewParser([]rune(test))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := p.Parse(op.And{Literal, op.EOF{}}); err != nil {
-			t.Fatal(err)
-		}
-	}
-}
-
 func TestPN_LOCAL(t *testing.T) {
 	for _, test := range []string{
-		":", "a", "aaa", "enemyOf", "name",
+		"a·̀ͯ‿.⁀", ":", "a", "aaa", "enemyOf", "name", "2..0",
 	} {
 		p, err := NewParser([]rune(test))
 		if err != nil {
@@ -212,28 +206,14 @@ func TestPN_LOCAL(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-}
-
-func TestPN_PREFIX(t *testing.T) {
 	for _, test := range []string{
-		"a.a", "a......a.a.a.a",
+		"2..0.",
 	} {
 		p, err := NewParser([]rune(test))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := p.Parse(op.And{PN_PREFIX, op.EOF{}}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	for _, test := range []string{
-		".", "aaa.",
-	} {
-		p, err := NewParser([]rune(test))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := p.Parse(op.And{PN_PREFIX, op.EOF{}}); err == nil {
+		if _, err := p.Parse(op.And{PN_LOCAL, op.EOF{}}); err == nil {
 			t.Fatal(test)
 		}
 	}
@@ -281,6 +261,31 @@ func TestPrefix(t *testing.T) {
 	}
 }
 
+func TestPrefixedName(t *testing.T) {
+	for _, test := range []string{
+		"p:a·̀ͯ‿.⁀", "p:", "p:p", ":0.1", ":0..2",
+	} {
+		p, err := NewParser([]rune(test))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := p.Parse(op.And{PrefixedName, op.EOF{}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, test := range []string{
+		"invalid.:o",
+	} {
+		p, err := NewParser([]rune(test))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := p.Parse(op.And{PrefixedName, op.EOF{}}); err == nil {
+			t.Fatal(test)
+		}
+	}
+}
+
 func TestString(t *testing.T) {
 	for _, test := range []string{
 		`'''TEST'''`, `'"TEST"'`, `'''('')'''`,
@@ -310,6 +315,7 @@ func TestTriples(t *testing.T) {
 			 ) .`,
 		`<a> <b> <c>.`,
 		"[ :a :b ] :c :d .",
+		"<s> <p> 123.E+1 .",
 	} {
 		p, err := NewParser([]rune(test))
 		if err != nil {

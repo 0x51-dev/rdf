@@ -1,4 +1,4 @@
 github.com/0x51-dev/ri v0.0.0-20230708135038-029eea38546f h1:6bWTNS1c7TqLdQEruMwLvDQ7Jn+vJniE/dqeTmOenVA=
 github.com/0x51-dev/ri v0.0.0-20230708135038-029eea38546f/go.mod h1:jw6tYgXeAqwcKnvjTOI6rfGEhLj3R5PSMUbRlKL2DvM=
-github.com/0x51-dev/upeg v0.0.0-20230829161504-bdf1e5e3b220 h1:Agg2TMCsToB6SOGEHNa9EAJEG32Ej9pV+g6lRTlaQxg=
-github.com/0x51-dev/upeg v0.0.0-20230829161504-bdf1e5e3b220/go.mod h1:ts9/Zafxb9W9drZFTmQNMR7kLOyHyBw37NuowyiDork=
+github.com/0x51-dev/upeg v0.0.0-20230905211053-ee881c4f4508 h1:QuF39EbNtzj2iQ6d/eetRDbz8YGCctZQN1AJxa6wc2I=
+github.com/0x51-dev/upeg v0.0.0-20230905211053-ee881c4f4508/go.mod h1:ts9/Zafxb9W9drZFTmQNMR7kLOyHyBw37NuowyiDork=

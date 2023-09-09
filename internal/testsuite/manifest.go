@@ -3,7 +3,6 @@ package testsuite
 import (
 	"fmt"
 	ttl "github.com/0x51-dev/rdf/turtle"
-	"github.com/0x51-dev/rdf/turtle/grammar/ir"
 )
 
 type ApprovalType string
@@ -43,11 +42,11 @@ func LoadManifest(raw string) (*Manifest, error) {
 	var keys []string
 	entries := make(map[string]*Test)
 	switch t := mfEntries[0].(type) {
-	case ir.Collection:
+	case ttl.Collection:
 		for _, entry := range t {
 			var name string
 			switch t := entry.(type) {
-			case *ir.IRI:
+			case *ttl.IRI:
 				name = t.Value
 			default:
 				return nil, fmt.Errorf("manifest: entry name not an IRI")
@@ -70,9 +69,10 @@ type Test struct {
 	Comment  string
 	Approval ApprovalType
 	Action   string
+	Result   string
 }
 
-func NewTest(triple ir.Triple) (*Test, error) {
+func NewTest(triple *ttl.Triple) (*Test, error) {
 	pom, err := triple.PredicateObjectMap()
 	if err != nil {
 		return nil, err
@@ -96,11 +96,18 @@ func NewTest(triple ir.Triple) (*Test, error) {
 	if !ok {
 		return nil, fmt.Errorf("test: no action")
 	}
+	result, ok := pom["mf:result"]
+	var r string
+	if ok {
+		r = (result[0].(*ttl.IRI)).Value
+	}
+
 	return &Test{
 		Type:     typ.String(),
-		Name:     (name[0].(*ir.StringLiteral)).Value,
+		Name:     (name[0].(*ttl.StringLiteral)).Value,
 		Comment:  comment.String(),
 		Approval: ApprovalType(approval.String()),
-		Action:   (action[0].(*ir.IRI)).Value,
+		Action:   (action[0].(*ttl.IRI)).Value,
+		Result:   r, // optional, only with eval tests
 	}, nil
 }

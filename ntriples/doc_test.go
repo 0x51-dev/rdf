@@ -4,8 +4,11 @@ import (
 	"embed"
 	_ "embed"
 	"fmt"
+	"github.com/0x51-dev/rdf/internal/project"
 	"github.com/0x51-dev/rdf/internal/testsuite"
 	"github.com/0x51-dev/rdf/ntriples"
+	"github.com/0x51-dev/rdf/turtle"
+	"os"
 	"testing"
 )
 
@@ -73,6 +76,8 @@ func TestSuite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	report := project.NewReport(turtle.IRI{Value: "http://www.w3.org/2013/N-TriplesTests/manifest.ttl#"})
 	for _, k := range manifest.Keys {
 		e := manifest.Entries[k]
 		raw, err := suite.ReadFile(fmt.Sprintf("testdata/suite/%s", e.Action))
@@ -84,26 +89,38 @@ func TestSuite(t *testing.T) {
 		case "rdft:TestNTriplesPositiveSyntax":
 			t.Run(e.Name, func(t *testing.T) {
 				if err != nil {
+					report.AddTest(e.Name, testsuite.Failed)
 					t.Fatal(err)
 				}
 
 				// fmt.Stringer
 				doc2, err := ntriples.ParseDocument(doc.String())
 				if err != nil {
+					report.AddTest(e.Name, testsuite.Failed)
 					t.Fatal(err)
 				}
 				if len(doc) != len(doc2) {
-					t.Error(len(doc), len(doc2))
+					report.AddTest(e.Name, testsuite.Failed)
+					t.Fatal(len(doc), len(doc2))
 				}
+
+				report.AddTest(e.Name, testsuite.Passed)
 			})
 		case "rdft:TestNTriplesNegativeSyntax":
 			t.Run(e.Name, func(t *testing.T) {
 				if err == nil {
+					report.AddTest(e.Name, testsuite.Failed)
 					t.Fatal("expected error")
 				}
+
+				report.AddTest(e.Name, testsuite.Passed)
 			})
 		default:
 			t.Fatal("unknown test type", e.Type)
 		}
+	}
+
+	if os.Getenv("TEST_SUITE_REPORT") == "true" {
+		_ = os.WriteFile("testdata/suite/report.ttl", []byte(report.String()), 0644)
 	}
 }

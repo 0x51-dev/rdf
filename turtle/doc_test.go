@@ -4,8 +4,11 @@ import (
 	"embed"
 	_ "embed"
 	"fmt"
+	"github.com/0x51-dev/rdf/internal/project"
 	"github.com/0x51-dev/rdf/internal/testsuite"
+	"github.com/0x51-dev/rdf/ntriples"
 	"github.com/0x51-dev/rdf/turtle"
+	"os"
 	"testing"
 )
 
@@ -19,7 +22,7 @@ var (
 	//go:embed testdata/suite/manifest.ttl
 	rawManifest string
 
-	//go:embed testdata/suite/*.ttl
+	//go:embed testdata/suite/*
 	suite embed.FS
 )
 
@@ -39,9 +42,9 @@ func Example_example1() {
 func TestExamples(t *testing.T) {
 	// Amount of triples in each example (manually counted).
 	triples := []int{
-		2, 1, 1, 2, 1, 2, 1, 1, 9, 2,
-		7, 1, 1, 2, 1, 2, 6, 2, 1, 1,
-		1, 2, 1, 4, 1, 7, 1,
+		7, 1, 1, 2, 1, 2, 2, 2, 14, 3,
+		10, 2, 2, 3, 2, 3, 6, 3, 4, 2,
+		3, 3, 2, 5, 2, 8, 3,
 	}
 	entries, err := examples.ReadDir("testdata")
 	if err != nil {
@@ -63,8 +66,8 @@ func TestExamples(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(doc.Triples) != n {
-				t.Fatal(len(doc.Triples))
+			if len(doc) != n {
+				t.Fatal(n, len(doc))
 			}
 
 			{ // fmt.Stringer
@@ -72,8 +75,8 @@ func TestExamples(t *testing.T) {
 				if err != nil {
 					t.Fatal(doc.String())
 				}
-				if len(doc2.Triples) != n {
-					t.Fatal(len(doc2.Triples))
+				if len(doc2) != n {
+					t.Fatal(n, len(doc2))
 				}
 			}
 		})
@@ -81,13 +84,14 @@ func TestExamples(t *testing.T) {
 }
 
 func TestSuite(t *testing.T) {
-	// TODO: enable this test
-	t.Skip("skipping test suite")
+	ntriples.ToggleValidation(false)
 
 	manifest, err := testsuite.LoadManifest(rawManifest)
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	report := project.NewReport(turtle.IRI{Prefixed: true, Value: "turtletest:"})
 	for _, k := range manifest.Keys {
 		e := manifest.Entries[k]
 		raw, err := suite.ReadFile(fmt.Sprintf("testdata/suite/%s", e.Action))
@@ -96,29 +100,102 @@ func TestSuite(t *testing.T) {
 		}
 		doc, err := turtle.ParseDocument(string(raw))
 		switch e.Type {
-		case "rdft:TestTurtlePositiveSyntax", "rdft:TestTurtleEval":
+		case "rdft:TestTurtlePositiveSyntax":
 			t.Run(e.Name, func(t *testing.T) {
 				if err != nil {
+					report.AddTest(e.Name, testsuite.Failed)
 					t.Fatal(err)
 				}
 
 				// fmt.Stringer
 				doc2, err := turtle.ParseDocument(doc.String())
 				if err != nil {
+					report.AddTest(e.Name, testsuite.Failed)
 					t.Fatal(err)
 				}
-				if len(doc.Triples) != len(doc2.Triples) {
-					t.Error(len(doc.Triples), len(doc2.Triples))
+				if len(doc) != len(doc2) {
+					report.AddTest(e.Name, testsuite.Failed)
+					t.Fatal(len(doc), len(doc2))
 				}
+
+				report.AddTest(e.Name, testsuite.Passed)
 			})
-		case "rdft:TestTurtleNegativeSyntax", "rdft:TestTurtleNegativeEval":
+		case "rdft:TestTurtleNegativeSyntax":
 			t.Run(e.Name, func(t *testing.T) {
-				if err == nil {
+				if err == nil && turtle.ValidateDocument(doc) {
+					report.AddTest(e.Name, testsuite.Failed)
 					t.Fatal("expected error")
+				}
+
+				report.AddTest(e.Name, testsuite.Passed)
+			})
+		case "rdft:TestTurtleEval":
+			t.Run(e.Name, func(t *testing.T) {
+				if err != nil {
+					report.AddTest(e.Name, testsuite.Failed)
+					t.Fatal(err)
+				}
+
+				// fmt.Stringer
+				doc2, err := turtle.ParseDocument(doc.String())
+				if err != nil {
+					report.AddTest(e.Name, testsuite.Failed)
+					t.Fatal(err)
+				}
+				if len(doc) != len(doc2) {
+					report.AddTest(e.Name, testsuite.Failed)
+					t.Fatal(len(doc), len(doc2))
+				}
+
+				raw, err := suite.ReadFile(fmt.Sprintf("testdata/suite/%s", e.Result))
+				if err != nil {
+					t.Fatal(err)
+				}
+				ntr, err := ntriples.ParseDocument(string(raw))
+				if err != nil {
+					t.Fatal(err)
+				}
+				ntr2, err := turtle.EvaluateDocument(doc)
+				if err != nil {
+					report.AddTest(e.Name, testsuite.Failed)
+					t.Fatal(err)
+				}
+				if len(ntr) != len(ntr2) {
+					report.AddTest(e.Name, testsuite.Failed)
+					t.Fatal(len(ntr), len(ntr2))
+				}
+				report.AddTest(e.Name, testsuite.Passed)
+			})
+		case "rdft:TestTurtleNegativeEval":
+			t.Run(e.Name, func(t *testing.T) {
+				if err != nil {
+					// If we can not parse the document, we can not evaluate it...
+					report.AddTest(e.Name, testsuite.Passed)
+					return
+				}
+
+				// fmt.Stringer
+				doc2, err := turtle.ParseDocument(doc.String())
+				if err != nil {
+					report.AddTest(e.Name, testsuite.Failed)
+					t.Fatal(err)
+				}
+				if len(doc) != len(doc2) {
+					report.AddTest(e.Name, testsuite.Failed)
+					t.Fatal(len(doc), len(doc2))
+				}
+
+				if _, err := turtle.EvaluateDocument(doc); err == nil {
+					report.AddTest(e.Name, testsuite.Failed)
+					t.Fatal(doc)
 				}
 			})
 		default:
 			t.Fatal("unknown test type", e.Type)
 		}
+	}
+
+	if os.Getenv("TEST_SUITE_REPORT") == "true" {
+		_ = os.WriteFile("testdata/suite/report.ttl", []byte(report.String()), 0644)
 	}
 }
