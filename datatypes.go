@@ -1,22 +1,22 @@
 package rdf
 
-import "fmt"
+import (
+	"fmt"
+	"math/big"
+	"strings"
+)
 
 type DataType string
 
 // INFO on datatypes: https://www.w3.org/TR/xmlschema11-2/type-hierarchy-201104.longdesc.html
 const (
-	XSD                      = "http://www.w3.org/2001/XMLSchema#"
-	XSDAnyType      DataType = XSD + "anyType"
-	XSDAnyURI       DataType = XSD + "anyURI"
-	XSDBase64Binary DataType = XSD + "base64Binary"
-	XSDBoolean      DataType = XSD + "boolean"
-	XSDDate         DataType = XSD + "date"
-	XDSDecimal      DataType = XSD + "decimal"
-	XSDDouble       DataType = XSD + "double"
-	XSDDuration     DataType = XSD + "duration"
-	XSDFloat        DataType = XSD + "float"
-	XSDString       DataType = XSD + "string"
+	XSD                 = "http://www.w3.org/2001/XMLSchema#"
+	XSDAnyType DataType = XSD + "anyType"
+	XSDBoolean DataType = XSD + "boolean"
+	XSDInteger DataType = XSD + "integer"
+	XSDDecimal DataType = XSD + "decimal"
+	XSDDouble  DataType = XSD + "double"
+	XSDString  DataType = XSD + "string"
 	// TODO: add "other" build-in atomic types, e.g. dateTimeStamp etc.
 
 	XSDNS       = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
@@ -35,6 +35,27 @@ func (d DataType) NativeType(value string) (any, bool, error) {
 			return value[0] == 't', true, nil
 		}
 		return nil, false, fmt.Errorf("invalid boolean value: %q", value)
+	case XSDInteger:
+		if i, ok := new(big.Int).SetString(value, 10); ok {
+			return i, true, nil
+		}
+		return nil, false, fmt.Errorf("invalid integer value: %q", value)
+	case XSDDecimal:
+		if strings.ContainsAny(value, "eE") {
+			return nil, false, fmt.Errorf("invalid decimal value: %q", value)
+		}
+		if f, ok := new(big.Float).SetString(value); ok {
+			return f, true, nil
+		}
+		return nil, false, fmt.Errorf("invalid decimal value: %q", value)
+	case XSDDouble:
+		if value == "INF" || value == "-INF" || value == "NaN" {
+			return value, true, nil
+		}
+		if f, ok := new(big.Float).SetString(value); ok {
+			return f, true, nil
+		}
+		return nil, false, fmt.Errorf("invalid decimal value: %q", value)
 	default:
 		return value, false, nil
 	}
@@ -46,7 +67,6 @@ func (d DataType) Validate(v any, acceptString bool) bool {
 		// TODO: validate string against the datatype.
 		return true
 	}
-
 	switch d {
 	case XSDAnyType:
 		return true
@@ -56,6 +76,18 @@ func (d DataType) Validate(v any, acceptString bool) bool {
 	case XSDBoolean:
 		_, ok := v.(bool)
 		return ok
+	case XSDInteger:
+		_, ok := v.(*big.Int)
+		return ok
+	case XSDDecimal:
+		_, ok := v.(*big.Float)
+		return ok
+	case XSDDouble:
+		if _, ok := v.(*big.Float); ok {
+			return true
+		}
+		_, ok := v.(string)
+		return ok && (v == "INF" || v == "-INF" || v == "NaN")
 	default:
 		return false
 	}

@@ -10,6 +10,17 @@ type BlankNode struct {
 	Attribute string
 }
 
+func (b *BlankNode) Equal(other Node) bool {
+	if other, ok := other.(*BlankNode); ok {
+		return b.Attribute == other.Attribute
+	}
+	return false
+}
+
+func (b *BlankNode) GetValue() string {
+	return b.Attribute
+}
+
 func (b *BlankNode) toObject(_ bool) (map[string]any, error) {
 	return map[string]any{
 		"@id": b.Attribute,
@@ -18,6 +29,17 @@ func (b *BlankNode) toObject(_ bool) (map[string]any, error) {
 
 type IRIReference struct {
 	Value string
+}
+
+func (r *IRIReference) Equal(other Node) bool {
+	if other, ok := other.(*IRIReference); ok {
+		return r.Value == other.Value
+	}
+	return false
+}
+
+func (r *IRIReference) GetValue() string {
+	return r.Value
 }
 
 func (r *IRIReference) toObject(_ bool) (map[string]any, error) {
@@ -34,6 +56,17 @@ type Literal struct {
 	Datatype DataType
 	// Language can only be present if Datatype is XSDNSString.
 	Language string
+}
+
+func (l *Literal) Equal(other Node) bool {
+	if other, ok := other.(*Literal); ok {
+		return l.Value == other.Value && l.Datatype == other.Datatype && l.Language == other.Language
+	}
+	return false
+}
+
+func (l *Literal) GetValue() string {
+	return l.Value
 }
 
 func (l *Literal) toObject(nativeTypes bool) (map[string]any, error) {
@@ -68,10 +101,15 @@ func (l *Literal) toObject(nativeTypes bool) (map[string]any, error) {
 }
 
 type Node interface {
+	// GetValue returns the value of the node.
+	GetValue() string
+	// Equal returns true if the two nodes are equal.
+	Equal(other Node) bool
+
 	toObject(nativeTypes bool) (map[string]any, error)
 }
 
-func FromObject(obj any, acceptString bool) (Node, error) {
+func fromObject(obj any, acceptString bool) (Node, error) {
 	var id string
 	switch obj := obj.(type) {
 	case map[string]any:
@@ -80,7 +118,7 @@ func FromObject(obj any, acceptString bool) (Node, error) {
 				Value:    fmt.Sprintf("%v", v),
 				Datatype: XSDString,
 			}
-			if datatype, ok := obj["@datatype"]; ok {
+			if datatype, ok := obj["@type"]; ok {
 				s, ok := datatype.(string)
 				if !ok {
 					return nil, fmt.Errorf("invalid @datatype attribute: %T", datatype)
@@ -89,6 +127,20 @@ func FromObject(obj any, acceptString bool) (Node, error) {
 			}
 			if !literal.Datatype.Validate(v, acceptString) {
 				return nil, fmt.Errorf("invalid @value for datatype %s: %v", literal.Datatype, v)
+			}
+
+			if language, ok := obj["@language"]; ok {
+				s, ok := language.(string)
+				if !ok {
+					return nil, fmt.Errorf("invalid @language attribute: %T", language)
+				}
+				literal.Language = s
+				if literal.Datatype != "" && literal.Datatype != XSDNSString {
+					return nil, fmt.Errorf("invalid datatype for language literal: %s", literal.Datatype)
+				}
+				if literal.Datatype == "" {
+					literal.Datatype = XSDNSString
+				}
 			}
 			return literal, nil
 		}

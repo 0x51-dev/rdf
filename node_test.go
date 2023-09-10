@@ -20,7 +20,7 @@ func TestFromObject_blankNode(t *testing.T) {
 		if err := json.Unmarshal([]byte(test), &m); err != nil {
 			t.Fatal(err)
 		}
-		n, err := FromObject(m, false)
+		n, err := fromObject(m, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -43,7 +43,7 @@ func TestFromObject_iriReference(t *testing.T) {
 		if err := json.Unmarshal([]byte(test), &m); err != nil {
 			t.Fatal(err)
 		}
-		n, err := FromObject(m, false)
+		n, err := fromObject(m, false)
 		if err != nil {
 			t.Fatal(err)
 		}
