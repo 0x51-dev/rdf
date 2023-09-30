@@ -27,7 +27,7 @@ func (a A) verb() {}
 
 type Base string
 
-func parseBase(n *parser.Node) (*Base, error) {
+func ParseBase(n *parser.Node) (*Base, error) {
 	if n.Name != "Base" {
 		return nil, fmt.Errorf("base: unknown %s", n.Name)
 	}
@@ -41,11 +41,11 @@ func (b Base) String() string {
 
 func (b Base) directive() {}
 
-func (b Base) line() {}
+func (b Base) statement() {}
 
 type BlankNode string
 
-func parseBlankNode(n *parser.Node) (*BlankNode, error) {
+func ParseBlankNode(n *parser.Node) (*BlankNode, error) {
 	if n.Name != "BlankNode" {
 		return nil, fmt.Errorf("blank node: unknown %s", n.Name)
 	}
@@ -61,13 +61,13 @@ func parseBlankNode(n *parser.Node) (*BlankNode, error) {
 	}
 }
 
-func (b *BlankNode) String() string {
-	return string(*b)
+func (b BlankNode) String() string {
+	return string(b)
 }
 
-func (b *BlankNode) object() {}
+func (b BlankNode) object() {}
 
-func (b *BlankNode) subject() {}
+func (b BlankNode) subject() {}
 
 type BlankNodePropertyList PredicateObjectList
 
@@ -99,13 +99,13 @@ func (b BlankNodePropertyList) object() {}
 
 type BooleanLiteral bool
 
-func (bl *BooleanLiteral) String() string {
-	return fmt.Sprintf("%t", *bl)
+func (bl BooleanLiteral) String() string {
+	return fmt.Sprintf("%t", bl)
 }
 
-func (bl *BooleanLiteral) literal() {}
+func (bl BooleanLiteral) literal() {}
 
-func (bl *BooleanLiteral) object() {}
+func (bl BooleanLiteral) object() {}
 
 type Collection []Object
 
@@ -151,15 +151,15 @@ func parseDirective(n *parser.Node) (Directive, error) {
 	}
 	switch n = n.Children()[0]; n.Name {
 	case "Base":
-		return parseBase(n)
+		return ParseBase(n)
 	case "Prefix":
-		return parsePrefix(n)
+		return ParsePrefix(n)
 	default:
 		return nil, fmt.Errorf("directive: unknown: %s", n.Name)
 	}
 }
 
-type Document []Line
+type Document []Statement
 
 func ParseDocument(doc string) (Document, error) {
 	if len(doc) == 0 {
@@ -247,7 +247,7 @@ type IRI struct {
 	Value    string
 }
 
-func parseIRI(n *parser.Node) (*IRI, error) {
+func ParseIRI(n *parser.Node) (*IRI, error) {
 	if n.Name != "IRI" {
 		return nil, fmt.Errorf("iri: unknown %s", n.Name)
 	}
@@ -279,15 +279,28 @@ func (i IRI) subject() {}
 
 func (i IRI) verb() {}
 
-type Line interface {
-	line()
+type Literal interface {
+	literal()
+
+	Object
 
 	fmt.Stringer
 }
 
-type Literal interface {
-	Object
-	literal()
+func ParseLiteral(n *parser.Node) (Literal, error) {
+	if n.Name != "Literal" {
+		return nil, fmt.Errorf("literal: unknown %s", n.Name)
+	}
+	switch n = n.Children()[0]; n.Name {
+	case "RDFLiteral":
+		return parseRDFLiteral(n)
+	case "NumericLiteral":
+		return parseNumericLiteral(n)
+	case "BooleanLiteral":
+		return parseBooleanLiteral(n)
+	default:
+		return nil, fmt.Errorf("literal: unknown: %s", n.Name)
+	}
 }
 
 func parseBooleanLiteral(n *parser.Node) (Literal, error) {
@@ -335,21 +348,6 @@ func parseInteger(n *parser.Node) (Literal, error) {
 	}, nil
 }
 
-func parseLiteral(n *parser.Node) (Literal, error) {
-	if n.Name != "Literal" {
-		return nil, fmt.Errorf("literal: unknown %s", n.Name)
-	}
-	switch n = n.Children()[0]; n.Name {
-	case "RDFLiteral":
-		return parseRDFLiteral(n)
-	case "NumericLiteral":
-		return parseNumericLiteral(n)
-	case "BooleanLiteral":
-		return parseBooleanLiteral(n)
-	default:
-		return nil, fmt.Errorf("literal: unknown: %s", n.Name)
-	}
-}
 func parseNumericLiteral(n *parser.Node) (Literal, error) {
 	if n.Name != "NumericLiteral" {
 		return nil, fmt.Errorf("numeric literal: unknown %s", n.Name)
@@ -365,7 +363,6 @@ func parseNumericLiteral(n *parser.Node) (Literal, error) {
 		return nil, fmt.Errorf("numeric literal: unknown: %s", n.Name)
 	}
 }
-
 func parseRDFLiteral(n *parser.Node) (Literal, error) {
 	if n.Name != "RDFLiteral" {
 		return nil, fmt.Errorf("rdf literal: unknown %s", n.Name)
@@ -418,15 +415,15 @@ func parseObject(n *parser.Node) (Object, error) {
 	}
 	switch n = n.Children()[0]; n.Name {
 	case "IRI":
-		return parseIRI(n)
+		return ParseIRI(n)
 	case "BlankNode":
-		return parseBlankNode(n)
+		return ParseBlankNode(n)
 	case "Collection":
 		return parseCollection(n)
 	case "BlankNodePropertyList":
 		return parseBlankNodePropertyList(n)
 	case "Literal":
-		return parseLiteral(n)
+		return ParseLiteral(n)
 	default:
 		return nil, fmt.Errorf("object: unknown: %s", n.Name)
 	}
@@ -546,15 +543,14 @@ type Prefix struct {
 	IRI  string
 }
 
-func parsePrefix(n *parser.Node) (*Prefix, error) {
+func ParsePrefix(n *parser.Node) (*Prefix, error) {
 	if n.Name != "Prefix" {
 		return nil, fmt.Errorf("prefix: unknown %s", n.Name)
 	}
-	prefix := Prefix{
+	return &Prefix{
 		Name: n.Children()[0].Value(),
 		IRI:  n.Children()[1].Value(),
-	}
-	return &prefix, nil
+	}, nil
 }
 
 func (p Prefix) String() string {
@@ -563,7 +559,13 @@ func (p Prefix) String() string {
 
 func (p Prefix) directive() {}
 
-func (p Prefix) line() {}
+func (p Prefix) statement() {}
+
+type Statement interface {
+	statement()
+
+	fmt.Stringer
+}
 
 type StringLiteral struct {
 	Value       string
@@ -640,9 +642,9 @@ func parseSubject(n *parser.Node) (Subject, error) {
 	}
 	switch n = n.Children()[0]; n.Name {
 	case "IRI":
-		return parseIRI(n)
+		return ParseIRI(n)
 	case "BlankNode":
-		return parseBlankNode(n)
+		return ParseBlankNode(n)
 	case "Collection":
 		return parseCollection(n)
 	default:
@@ -736,7 +738,7 @@ func (t Triple) String() string {
 	return s
 }
 
-func (t Triple) line() {}
+func (t Triple) statement() {}
 
 type Verb interface {
 	verb()
@@ -750,7 +752,7 @@ func parseVerb(n *parser.Node) (Verb, error) {
 	}
 	switch n = n.Children()[0]; n.Name {
 	case "IRI":
-		iri, err := parseIRI(n)
+		iri, err := ParseIRI(n)
 		if err != nil {
 			return nil, err
 		}

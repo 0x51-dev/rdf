@@ -1,0 +1,7 @@
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix dc: <http://purl.org/dc/terms/> .
+@prefix : <http://example.org/> .
+
+{ :cervantes dc:wrote :moby_dick } :opinion :lie ;
+  :retrievedFrom <http://lies_r_us.com> ;
+  :retrievedAt "2020-07-12T09:01:33"^^xsd:dateTime .

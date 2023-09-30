@@ -3,7 +3,7 @@ package ntriples
 import (
 	"fmt"
 	"github.com/0x51-dev/rdf/ntriples/grammar"
-	"github.com/0x51-dev/ri/i"
+	"github.com/0x51-dev/rids/iri"
 	"github.com/0x51-dev/upeg/parser"
 	"github.com/0x51-dev/upeg/parser/op"
 	"strconv"
@@ -112,7 +112,7 @@ func (r IRIReference) IsValid() bool {
 	if err != nil {
 		return false
 	}
-	if _, err := p.Match(op.And{i.AbsoluteIRI, op.Optional{Value: op.And{'#', i.Ifragment}}, op.EOF{}}); err != nil {
+	if _, err := p.Match(op.And{iri.AbsoluteIRI, op.Optional{Value: op.And{'#', iri.Ifragment}}, op.EOF{}}); err != nil {
 		return false
 	}
 	return true

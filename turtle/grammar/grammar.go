@@ -13,7 +13,8 @@ var (
 		Value: op.ZeroOrMore{Value: op.And{
 			nt.OWhitespace,
 			op.Or{
-				op.Or{Directive, Triples},
+				Directive,
+				Triples,
 				op.And{op.Optional{Value: nt.Comment}, op.EndOfLine{}},
 			},
 		}},
@@ -39,18 +40,20 @@ var (
 			'.',
 		},
 	}
+	PREFIX       = CaseInsensitiveString("PREFIX")
 	SparqlPrefix = op.Capture{
 		Name: "Prefix",
 		Value: op.And{
-			CaseInsensitiveString("PREFIX"), nt.Whitespace,
+			PREFIX, nt.Whitespace,
 			op.Capture{Name: "Prefix", Value: PNAME_NS}, nt.Whitespace,
 			nt.IRIReference,
 		},
 	}
+	BASE       = CaseInsensitiveString("BASE")
 	SparqlBase = op.Capture{
 		Name: "Base",
 		Value: op.And{
-			CaseInsensitiveString("BASE"), nt.Whitespace,
+			BASE, nt.Whitespace,
 			nt.IRIReference,
 		},
 	}
@@ -102,7 +105,8 @@ var (
 	ObjectList = op.Capture{
 		Name: "ObjectList",
 		Value: op.And{
-			Object, op.ZeroOrMore{Value: op.And{
+			Object,
+			op.ZeroOrMore{Value: op.And{
 				nt.OWhitespace, ',',
 				WSPLNC, Object,
 			}},

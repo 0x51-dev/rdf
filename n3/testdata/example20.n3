@@ -1,0 +1,3 @@
+@prefix : <http://example.org/> .
+
+(:Fred :Wilma :Dino) (:read :liked :approved) (:resolution1 :resolution2 :resolution3) .

@@ -1,0 +1,8 @@
+@prefix math: <http://www.w3.org/2000/10/swap/math#> .
+@prefix : <http://example.org/>.
+
+:spiderman :heightInCm 180 .
+
+{ ?person :heightInCm ?cm .
+  ( ?cm 100 ) math:quotient ?m .
+} => { ?person :heightInMeter ?m } .

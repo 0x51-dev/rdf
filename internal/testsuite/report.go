@@ -13,7 +13,7 @@ type Developer struct {
 	Homepage string
 }
 
-func (d Developer) line() turtle.Line {
+func (d Developer) line() turtle.Statement {
 	var b turtle.Triple
 	b.Subject = d.IRI
 	b.PredicateObjectList = turtle.PredicateObjectList{
@@ -72,7 +72,7 @@ type Project struct {
 	Developer           []Developer
 }
 
-func (p Project) line() turtle.Line {
+func (p Project) line() turtle.Statement {
 	var t turtle.Triple
 	t.Subject = p.IRI
 	var implements []turtle.Object
@@ -125,14 +125,14 @@ func (p Project) line() turtle.Line {
 }
 
 type Report struct {
-	prefixes  []turtle.Line
+	prefixes  []turtle.Statement
 	Project   Project
 	testcases []TestCase
 }
 
 func NewReport() *Report {
 	return &Report{
-		prefixes: []turtle.Line{
+		prefixes: []turtle.Statement{
 			&turtle.Prefix{Name: "dc:", IRI: "http://purl.org/dc/elements/1.1/"},
 			&turtle.Prefix{Name: "rdft:", IRI: "http://www.w3.org/ns/rdftest#"},
 			&turtle.Prefix{Name: "earl:", IRI: "http://www.w3.org/ns/earl#"},
@@ -171,7 +171,7 @@ type TestCase struct {
 	Test       turtle.IRI
 }
 
-func (tc TestCase) line() turtle.Line {
+func (tc TestCase) line() turtle.Statement {
 	var b turtle.Triple
 	b.BlankNodePropertyList = turtle.BlankNodePropertyList{
 		{

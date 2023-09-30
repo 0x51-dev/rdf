@@ -1,0 +1,7 @@
+@prefix ex: <http://example.org/> .
+
+ex:john ex:address [
+  ex:street "Evergreen Terrace" ;
+  ex:number 742 ;
+  ex:town [ ex:name "Springfield" ]
+] .

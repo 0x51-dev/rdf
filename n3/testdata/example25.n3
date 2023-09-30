@@ -1,0 +1,12 @@
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix : <http://example.org/>.
+
+:spiderman a :WebSlinger .
+:44th :traffic :heavy .
+
+{ ?slinger a :WebSlinger } => { ?slinger :locomotion :flying } .
+
+{ ?heli a :Helicopter } => { ?heli :locomotion :flying  } .
+
+{ ?flyer :locomotion :flying . ?street :traffic :heavy }
+  =>  { ?street :suitable-observer ?flyer } .

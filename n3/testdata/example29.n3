@@ -1,0 +1,18 @@
+@prefix log: <http://www.w3.org/2000/10/swap/log#> .
+@prefix : <http://example.org/>.
+
+:spiderman a :SuperHero .
+:green-goblin :enemyOf :spiderman ; :defeated true .
+:doctor-octopus :enemyOf :spiderman ; :defeated true .
+:sandman :enemyOf :spiderman ; :defeated false .
+
+{
+  ?hero a :SuperHero .
+  (?enemy
+  {
+    ?enemy :enemyOf ?hero ;
+      :defeated true .
+  }
+  ?enemies) log:collectAllIn _:t .
+
+} => { ?hero :defeatedEnemies ?enemies } .

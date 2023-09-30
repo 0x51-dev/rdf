@@ -1,0 +1,9 @@
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix : <http://example.org/> .
+
+:spiderman rdfs:label
+  '"Bitten" by a radioactive spider.' ,
+  "\"Bitten\" by a radioactive spider." ,
+  """'Bitten' by "what"?
+  A radioactive spider!""" .
