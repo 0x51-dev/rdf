@@ -2,19 +2,19 @@ package turtle
 
 import (
 	"fmt"
-	"github.com/0x51-dev/rdf/ntriples"
+	nt "github.com/0x51-dev/rdf/ntriples"
 	"github.com/0x51-dev/rdf/turtle/grammar"
 	"github.com/0x51-dev/upeg/parser"
 	"github.com/0x51-dev/upeg/parser/op"
 	"strings"
 )
 
-func EvaluateDocument(doc Document) (ntriples.Document, error) {
-	return (&context{prefixes: make(map[string]string)}).evaluateDocument(doc)
+func EvaluateDocument(doc Document) (nt.Document, error) {
+	return NewContext().evaluateDocument(doc)
 }
 
 func ValidateDocument(doc Document) bool {
-	return (&context{prefixes: make(map[string]string)}).validateDocument(doc)
+	return NewContext().validateDocument(doc)
 }
 
 type A struct{}
@@ -29,7 +29,7 @@ type Base string
 
 func ParseBase(n *parser.Node) (*Base, error) {
 	if n.Name != "Base" {
-		return nil, fmt.Errorf("base: unknown %s", n.Name)
+		return nil, fmt.Errorf("Base: unknown %s", n.Name)
 	}
 	base := Base(n.Children()[0].Value())
 	return &base, nil
@@ -62,20 +62,26 @@ func ParseBlankNode(n *parser.Node) (*BlankNode, error) {
 }
 
 func (b BlankNode) String() string {
-	return string(b)
+	if b == "[]" {
+		return string(b)
+	}
+	return fmt.Sprintf("_:%s", string(b))
 }
 
 func (b BlankNode) object() {}
 
 func (b BlankNode) subject() {}
 
+// BlankNodePropertyList may appear in the subject or object position of a triple. That subject or object is a fresh RDF
+// blank node. This blank node also serves as the subject of the triples produced by matching the predicateObjectList
+// production embedded in a blankNodePropertyList.
 type BlankNodePropertyList PredicateObjectList
 
-func parseBlankNodePropertyList(n *parser.Node) (BlankNodePropertyList, error) {
+func ParseBlankNodePropertyList(n *parser.Node) (BlankNodePropertyList, error) {
 	if n.Name != "BlankNodePropertyList" {
 		return nil, fmt.Errorf("blank node property list: unknown %s", n.Name)
 	}
-	pol, err := parsePredicateObjectList(n.Children()[0])
+	pol, err := ParsePredicateObjectList(n.Children()[0])
 	if err != nil {
 		return nil, err
 	}
@@ -107,15 +113,18 @@ func (bl BooleanLiteral) literal() {}
 
 func (bl BooleanLiteral) object() {}
 
+// Collection represents a rdf:first/rdf:rest list structure with the sequence of objects of the rdf:first statements
+// being the order of the terms enclosed by (). It appears in the subject or object position of a triple. The blank node
+// at the head of the list is the subject or object of the containing triple.
 type Collection []Object
 
-func parseCollection(n *parser.Node) (Collection, error) {
+func ParseCollection(n *parser.Node) (Collection, error) {
 	if n.Name != "Collection" {
 		return nil, fmt.Errorf("collection: unknown %s", n.Name)
 	}
 	var collection Collection
 	for _, n := range n.Children() {
-		object, err := parseObject(n)
+		object, err := ParseObject(n)
 		if err != nil {
 			return nil, err
 		}
@@ -145,7 +154,7 @@ type Directive interface {
 	directive()
 }
 
-func parseDirective(n *parser.Node) (Directive, error) {
+func ParseDirective(n *parser.Node) (Directive, error) {
 	if n.Name != "Directive" {
 		return nil, fmt.Errorf("directive: unknown %s", n.Name)
 	}
@@ -187,7 +196,7 @@ func parseDocument(n *parser.Node) (Document, error) {
 	for _, n := range n.Children() {
 		switch n.Name {
 		case "Directive":
-			d, err := parseDirective(n)
+			d, err := ParseDirective(n)
 			if err != nil {
 				return nil, err
 			}
@@ -200,7 +209,7 @@ func parseDocument(n *parser.Node) (Document, error) {
 				return nil, fmt.Errorf("document: unknown directive: %T", d)
 			}
 		case "Triples":
-			t, err := parseTriples(n)
+			t, err := ParseTriples(n)
 			if err != nil {
 				return nil, err
 			}
@@ -242,6 +251,7 @@ func (d Document) SubjectMap() (map[string]*Triple, error) {
 	return m, nil
 }
 
+// IRI can be written as a relative/absolute IRI or prefixed name.
 type IRI struct {
 	Prefixed bool
 	Value    string
@@ -279,6 +289,7 @@ func (i IRI) subject() {}
 
 func (i IRI) verb() {}
 
+// Literal is either StringLiteral, NumericLiteral or BooleanLiteral.
 type Literal interface {
 	literal()
 
@@ -287,23 +298,7 @@ type Literal interface {
 	fmt.Stringer
 }
 
-func ParseLiteral(n *parser.Node) (Literal, error) {
-	if n.Name != "Literal" {
-		return nil, fmt.Errorf("literal: unknown %s", n.Name)
-	}
-	switch n = n.Children()[0]; n.Name {
-	case "RDFLiteral":
-		return parseRDFLiteral(n)
-	case "NumericLiteral":
-		return parseNumericLiteral(n)
-	case "BooleanLiteral":
-		return parseBooleanLiteral(n)
-	default:
-		return nil, fmt.Errorf("literal: unknown: %s", n.Name)
-	}
-}
-
-func parseBooleanLiteral(n *parser.Node) (Literal, error) {
+func ParseBooleanLiteral(n *parser.Node) (Literal, error) {
 	if n.Name != "BooleanLiteral" {
 		return nil, fmt.Errorf("boolean literal: unknown %s", n.Name)
 	}
@@ -319,7 +314,7 @@ func parseBooleanLiteral(n *parser.Node) (Literal, error) {
 	}
 }
 
-func parseDecimal(n *parser.Node) (Literal, error) {
+func ParseDecimal(n *parser.Node) (Literal, error) {
 	if n.Name != "Decimal" {
 		return nil, fmt.Errorf("decimal: unknown %s", n.Name)
 	}
@@ -328,7 +323,8 @@ func parseDecimal(n *parser.Node) (Literal, error) {
 		Value: n.Value(),
 	}, nil
 }
-func parseDouble(n *parser.Node) (Literal, error) {
+
+func ParseDouble(n *parser.Node) (Literal, error) {
 	if n.Name != "Double" {
 		return nil, fmt.Errorf("double: unknown %s", n.Name)
 	}
@@ -337,8 +333,7 @@ func parseDouble(n *parser.Node) (Literal, error) {
 		Value: n.Value(),
 	}, nil
 }
-
-func parseInteger(n *parser.Node) (Literal, error) {
+func ParseInteger(n *parser.Node) (Literal, error) {
 	if n.Name != "Integer" {
 		return nil, fmt.Errorf("integer: unknown %s", n.Name)
 	}
@@ -348,26 +343,43 @@ func parseInteger(n *parser.Node) (Literal, error) {
 	}, nil
 }
 
-func parseNumericLiteral(n *parser.Node) (Literal, error) {
+func ParseLiteral(n *parser.Node) (Literal, error) {
+	if n.Name != "Literal" {
+		return nil, fmt.Errorf("literal: unknown %s", n.Name)
+	}
+	switch n = n.Children()[0]; n.Name {
+	case "RDFLiteral":
+		return ParseRDFLiteral(n)
+	case "NumericLiteral":
+		return ParseNumericLiteral(n)
+	case "BooleanLiteral":
+		return ParseBooleanLiteral(n)
+	default:
+		return nil, fmt.Errorf("literal: unknown: %s", n.Name)
+	}
+}
+
+func ParseNumericLiteral(n *parser.Node) (Literal, error) {
 	if n.Name != "NumericLiteral" {
 		return nil, fmt.Errorf("numeric literal: unknown %s", n.Name)
 	}
 	switch n = n.Children()[0]; n.Name {
 	case "Decimal":
-		return parseDecimal(n)
+		return ParseDecimal(n)
 	case "Double":
-		return parseDouble(n)
+		return ParseDouble(n)
 	case "Integer":
-		return parseInteger(n)
+		return ParseInteger(n)
 	default:
 		return nil, fmt.Errorf("numeric literal: unknown: %s", n.Name)
 	}
 }
-func parseRDFLiteral(n *parser.Node) (Literal, error) {
+
+func ParseRDFLiteral(n *parser.Node) (Literal, error) {
 	if n.Name != "RDFLiteral" {
 		return nil, fmt.Errorf("rdf literal: unknown %s", n.Name)
 	}
-	v, err := parseStringLiteral(n.Children()[0])
+	v, err := ParseStringLiteral(n.Children()[0])
 	if err != nil {
 		return nil, err
 	}
@@ -409,7 +421,7 @@ type Object interface {
 	fmt.Stringer
 }
 
-func parseObject(n *parser.Node) (Object, error) {
+func ParseObject(n *parser.Node) (Object, error) {
 	if n.Name != "Object" {
 		return nil, fmt.Errorf("object: unknown %s", n.Name)
 	}
@@ -419,9 +431,9 @@ func parseObject(n *parser.Node) (Object, error) {
 	case "BlankNode":
 		return ParseBlankNode(n)
 	case "Collection":
-		return parseCollection(n)
+		return ParseCollection(n)
 	case "BlankNodePropertyList":
-		return parseBlankNodePropertyList(n)
+		return ParseBlankNodePropertyList(n)
 	case "Literal":
 		return ParseLiteral(n)
 	default:
@@ -429,23 +441,25 @@ func parseObject(n *parser.Node) (Object, error) {
 	}
 }
 
+// ObjectList matches a series of objects separated by ',' following a predicate. This expresses a series of RDF Triples
+// with the corresponding subject and predicate and each object allocated to one triple.
 type ObjectList []Object
 
-func parseObjectList(n *parser.Node) (ObjectList, error) {
+func ParseObjectList(n *parser.Node) (ObjectList, error) {
 	if n.Name != "ObjectList" {
 		return nil, fmt.Errorf("object list: unknown %s", n.Name)
 	}
 	var ol ObjectList
 	for _, n := range n.Children() {
 		if n.Name == "Object" {
-			object, err := parseObject(n)
+			object, err := ParseObject(n)
 			if err != nil {
 				return nil, err
 			}
 			ol = append(ol, object)
 		} else {
 			for _, n := range n.Children() {
-				object, err := parseObject(n)
+				object, err := ParseObject(n)
 				if err != nil {
 					return nil, err
 				}
@@ -472,15 +486,15 @@ type PredicateObject struct {
 	ObjectList ObjectList
 }
 
-func parsePredicateObject(n *parser.Node) (*PredicateObject, error) {
+func ParsePredicateObject(n *parser.Node) (*PredicateObject, error) {
 	if n.Name != "PredicateObject" {
 		return nil, fmt.Errorf("predicate object: unknown %s", n.Name)
 	}
-	v, err := parseVerb(n.Children()[0])
+	v, err := ParseVerb(n.Children()[0])
 	if err != nil {
 		return nil, err
 	}
-	ol, err := parseObjectList(n.Children()[1])
+	ol, err := ParseObjectList(n.Children()[1])
 	if err != nil {
 		return nil, err
 	}
@@ -499,16 +513,18 @@ func (po PredicateObject) String() string {
 	return s
 }
 
+// PredicateObjectList matches a series of predicates and objects, separated by ';', following a subject. This expresses
+// a series of RDF Triples with that subject and each predicate and object allocated to one triple.
 type PredicateObjectList []PredicateObject
 
-func parsePredicateObjectList(n *parser.Node) (PredicateObjectList, error) {
+func ParsePredicateObjectList(n *parser.Node) (PredicateObjectList, error) {
 	if n.Name != "PredicateObjectList" {
 		return nil, fmt.Errorf("predicate object list: unknown %s", n.Name)
 	}
 	var pol PredicateObjectList
 	for _, n := range n.Children() {
 		if n.Name == "PredicateObject" {
-			po, err := parsePredicateObject(n)
+			po, err := ParsePredicateObject(n)
 			if err != nil {
 				return nil, err
 			}
@@ -516,7 +532,7 @@ func parsePredicateObjectList(n *parser.Node) (PredicateObjectList, error) {
 			continue
 		} else {
 			for _, n := range n.Children() {
-				po, err := parsePredicateObject(n)
+				po, err := ParsePredicateObject(n)
 				if err != nil {
 					return nil, err
 				}
@@ -575,9 +591,9 @@ type StringLiteral struct {
 	DatatypeIRI string
 }
 
-func parseStringLiteral(n *parser.Node) (*StringLiteral, error) {
+func ParseStringLiteral(n *parser.Node) (*StringLiteral, error) {
 	switch n.Name {
-	case "StringLiteralQ":
+	case "StringLiteral":
 		return &StringLiteral{
 			Value: n.Value(),
 		}, nil
@@ -636,7 +652,7 @@ type Subject interface {
 	fmt.Stringer
 }
 
-func parseSubject(n *parser.Node) (Subject, error) {
+func ParseSubject(n *parser.Node) (Subject, error) {
 	if n.Name != "Subject" {
 		return nil, fmt.Errorf("subject: unknown %s", n.Name)
 	}
@@ -646,7 +662,7 @@ func parseSubject(n *parser.Node) (Subject, error) {
 	case "BlankNode":
 		return ParseBlankNode(n)
 	case "Collection":
-		return parseCollection(n)
+		return ParseCollection(n)
 	default:
 		return nil, fmt.Errorf("subject: unknown: %s", n.Name)
 	}
@@ -658,16 +674,16 @@ type Triple struct {
 	PredicateObjectList   PredicateObjectList
 }
 
-func parseTripleBlankNodePropertyList(n *parser.Node) (*Triple, error) {
+func ParseTripleBlankNodePropertyList(n *parser.Node) (*Triple, error) {
 	if n.Name != "TripleBlankNodePropertyList" {
 		return nil, fmt.Errorf("triple blank node property list: unknown %s", n.Name)
 	}
-	bnpl, err := parseBlankNodePropertyList(n.Children()[0])
+	bnpl, err := ParseBlankNodePropertyList(n.Children()[0])
 	if err != nil {
 		return nil, err
 	}
 	if len(n.Children()) == 2 {
-		pol, err := parsePredicateObjectList(n.Children()[1])
+		pol, err := ParsePredicateObjectList(n.Children()[1])
 		if err != nil {
 			return nil, err
 		}
@@ -679,17 +695,17 @@ func parseTripleBlankNodePropertyList(n *parser.Node) (*Triple, error) {
 	return &Triple{BlankNodePropertyList: bnpl}, nil
 }
 
-func parseTripleSubject(n *parser.Node) (*Triple, error) {
+func ParseTripleSubject(n *parser.Node) (*Triple, error) {
 	if n.Name != "TripleSubject" {
 		return nil, fmt.Errorf("triple subject: unknown %s", n.Name)
 	}
 	var triple Triple
-	s, err := parseSubject(n.Children()[0])
+	s, err := ParseSubject(n.Children()[0])
 	if err != nil {
 		return nil, err
 	}
 	triple.Subject = s
-	pl, err := parsePredicateObjectList(n.Children()[1])
+	pl, err := ParsePredicateObjectList(n.Children()[1])
 	if err != nil {
 		return nil, err
 	}
@@ -697,17 +713,17 @@ func parseTripleSubject(n *parser.Node) (*Triple, error) {
 	return &triple, nil
 }
 
-func parseTriples(n *parser.Node) (*Triple, error) {
+func ParseTriples(n *parser.Node) (*Triple, error) {
 	if n.Name != "Triples" {
-		return nil, fmt.Errorf("triples: unknown %s", n.Name)
+		return nil, fmt.Errorf("Triples: unknown %s", n.Name)
 	}
 	switch n = n.Children()[0]; n.Name {
 	case "TripleSubject":
-		return parseTripleSubject(n)
+		return ParseTripleSubject(n)
 	case "TripleBlankNodePropertyList":
-		return parseTripleBlankNodePropertyList(n)
+		return ParseTripleBlankNodePropertyList(n)
 	default:
-		return nil, fmt.Errorf("triples: unknown: %s", n.Name)
+		return nil, fmt.Errorf("Triples: unknown: %s", n.Name)
 	}
 }
 
@@ -715,9 +731,6 @@ func (t Triple) PredicateObjectMap() (map[string]ObjectList, error) {
 	m := make(map[string]ObjectList)
 	for _, po := range t.PredicateObjectList {
 		name := po.Verb.String()
-		if _, ok := m[name]; ok {
-			return nil, fmt.Errorf("triple: duplicate predicate: %s", po.Verb)
-		}
 		m[name] = po.ObjectList
 	}
 	return m, nil
@@ -746,7 +759,7 @@ type Verb interface {
 	fmt.Stringer
 }
 
-func parseVerb(n *parser.Node) (Verb, error) {
+func ParseVerb(n *parser.Node) (Verb, error) {
 	if n.Name != "Verb" {
 		return nil, fmt.Errorf("verb: unknown %s", n.Name)
 	}

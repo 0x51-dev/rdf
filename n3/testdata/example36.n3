@@ -1,3 +1,0 @@
-@prefix : <http://example.org/> .
-
-:joe!:hasMother^:hasMother a :Person .

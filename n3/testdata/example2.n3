@@ -1,3 +1,0 @@
-<http://example.org/spiderman>
-    <http://example.org/enemyOf> <http://example.org/green-goblin> ;
-    <http://xmlns.com/foaf/0.1/name> "Spiderman" .

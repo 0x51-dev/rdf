@@ -1,3 +1,0 @@
-@base <http://example.org/> .
-
-<spiderman> <enemyOf> <green-goblin> .

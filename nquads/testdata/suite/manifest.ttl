@@ -563,12 +563,14 @@
    mf:name      "literal_all_controls" ;
    rdfs:comment "literal_all_controls '\\x00\\x01\\x02\\x03\\x04...'" ;
    rdft:approval rdft:Approved ;
+   rdft:approval rdft:Approved ;
    mf:action   <literal_all_controls.nq> ;
    .
 
 <#literal_all_punctuation> a rdft:TestNQuadsPositiveSyntax ;
    mf:name      "literal_all_punctuation" ;
    rdfs:comment "literal_all_punctuation '!\"#$%&()...'" ;
+   rdft:approval rdft:Approved ;
    rdft:approval rdft:Approved ;
    mf:action    <literal_all_punctuation.nq> ;
    .

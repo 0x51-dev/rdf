@@ -3,24 +3,24 @@ package project
 import (
 	"fmt"
 	"github.com/0x51-dev/rdf/internal/testsuite"
-	"github.com/0x51-dev/rdf/turtle"
+	ttl "github.com/0x51-dev/rdf/turtle"
 	"time"
 )
 
 var (
-	assertedBy = turtle.IRI{Value: "https://github.com/q-uint"}
-	subject    = turtle.IRI{Value: "https://github.com/0x51-dev/rdf"}
+	assertedBy = ttl.IRI{Value: "https://github.com/q-uint"}
+	subject    = ttl.IRI{Value: "https://github.com/0x51-dev/rdf"}
 )
 
 type Report struct {
-	test turtle.IRI
+	test ttl.IRI
 	r    *testsuite.Report
 }
 
-func NewReport(test turtle.IRI) *Report {
+func NewReport(test ttl.IRI) *Report {
 	r := testsuite.NewReport()
 	r.Project = testsuite.Project{
-		IRI:                 turtle.IRI{Value: "https://github.com/0x51-dev/rdf"},
+		IRI:                 ttl.IRI{Value: "https://github.com/0x51-dev/rdf"},
 		Name:                "RDF",
 		Homepage:            "https://github.com/0x51-dev/rdf",
 		License:             "https://www.apache.org/licenses/LICENSE-2.0",
@@ -31,10 +31,11 @@ func NewReport(test turtle.IRI) *Report {
 			"https://www.w3.org/TR/n-triples/",
 			"https://www.w3.org/TR/n-quads/",
 			"https://www.w3.org/TR/turtle/",
+			"https://www.w3.org/TR/trig/",
 		},
 		Developer: []testsuite.Developer{
 			{
-				IRI:      turtle.IRI{Value: "https://github.com/q-uint"},
+				IRI:      ttl.IRI{Value: "https://github.com/q-uint"},
 				Name:     "Quint Daenen",
 				Title:    "Implementor",
 				MBox:     "mailto:quint@0x51.dev",
@@ -46,12 +47,12 @@ func NewReport(test turtle.IRI) *Report {
 }
 
 func (r *Report) AddTest(name string, outcome testsuite.OutcomeValue) {
-	test := turtle.IRI{Prefixed: r.test.Prefixed, Value: fmt.Sprintf("%s%s", r.test.Value, name)}
+	test := ttl.IRI{Prefixed: r.test.Prefixed, Value: fmt.Sprintf("%s%s", r.test.Value, name)}
 	r.r.AddTestCase(testsuite.TestCase{
 		AssertedBy: assertedBy,
 		Mode:       testsuite.Automatic,
 		Result: testsuite.TestResult{
-			Date: turtle.StringLiteral{
+			Date: ttl.StringLiteral{
 				Value:       time.Now().In(time.UTC).Format("2006-01-02-0700"),
 				DatatypeIRI: "xsd:date",
 			},
@@ -60,6 +61,10 @@ func (r *Report) AddTest(name string, outcome testsuite.OutcomeValue) {
 		Subject: subject,
 		Test:    test,
 	})
+}
+
+func (r *Report) Len() int {
+	return r.r.Len()
 }
 
 func (r *Report) String() string {

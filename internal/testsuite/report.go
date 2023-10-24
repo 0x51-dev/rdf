@@ -1,44 +1,44 @@
 package testsuite
 
 import (
-	"github.com/0x51-dev/rdf/turtle"
+	ttl "github.com/0x51-dev/rdf/turtle"
 	"time"
 )
 
 type Developer struct {
-	IRI      turtle.IRI
+	IRI      ttl.IRI
 	Name     string
 	Title    string
 	MBox     string
 	Homepage string
 }
 
-func (d Developer) line() turtle.Statement {
-	var b turtle.Triple
+func (d Developer) line() ttl.Statement {
+	var b ttl.Triple
 	b.Subject = d.IRI
-	b.PredicateObjectList = turtle.PredicateObjectList{
+	b.PredicateObjectList = ttl.PredicateObjectList{
 		{
-			Verb: new(turtle.A),
-			ObjectList: []turtle.Object{
-				&turtle.IRI{Prefixed: true, Value: "foaf:Person"},
-				&turtle.IRI{Prefixed: true, Value: "earl:Assertor"},
+			Verb: new(ttl.A),
+			ObjectList: []ttl.Object{
+				&ttl.IRI{Prefixed: true, Value: "foaf:Person"},
+				&ttl.IRI{Prefixed: true, Value: "earl:Assertor"},
 			},
 		},
 		{
-			Verb:       &turtle.IRI{Prefixed: true, Value: "foaf:name"},
-			ObjectList: []turtle.Object{&turtle.StringLiteral{Value: d.Name}},
+			Verb:       &ttl.IRI{Prefixed: true, Value: "foaf:name"},
+			ObjectList: []ttl.Object{&ttl.StringLiteral{Value: d.Name}},
 		},
 		{
-			Verb:       &turtle.IRI{Prefixed: true, Value: "foaf:title"},
-			ObjectList: []turtle.Object{&turtle.StringLiteral{Value: d.Title}},
+			Verb:       &ttl.IRI{Prefixed: true, Value: "foaf:title"},
+			ObjectList: []ttl.Object{&ttl.StringLiteral{Value: d.Title}},
 		},
 		{
-			Verb:       &turtle.IRI{Prefixed: true, Value: "foaf:mbox"},
-			ObjectList: []turtle.Object{&turtle.IRI{Value: d.MBox}},
+			Verb:       &ttl.IRI{Prefixed: true, Value: "foaf:mbox"},
+			ObjectList: []ttl.Object{&ttl.IRI{Value: d.MBox}},
 		},
 		{
-			Verb:       &turtle.IRI{Prefixed: true, Value: "foaf:homepage"},
-			ObjectList: []turtle.Object{&turtle.IRI{Value: d.Homepage}},
+			Verb:       &ttl.IRI{Prefixed: true, Value: "foaf:homepage"},
+			ObjectList: []ttl.Object{&ttl.IRI{Value: d.Homepage}},
 		},
 	}
 	return &b
@@ -61,7 +61,7 @@ const (
 )
 
 type Project struct {
-	IRI                 turtle.IRI
+	IRI                 ttl.IRI
 	Name                string
 	Homepage            string
 	License             string
@@ -72,52 +72,52 @@ type Project struct {
 	Developer           []Developer
 }
 
-func (p Project) line() turtle.Statement {
-	var t turtle.Triple
+func (p Project) line() ttl.Statement {
+	var t ttl.Triple
 	t.Subject = p.IRI
-	var implements []turtle.Object
+	var implements []ttl.Object
 	for _, i := range p.Implements {
-		implements = append(implements, &turtle.IRI{Value: i})
+		implements = append(implements, &ttl.IRI{Value: i})
 	}
-	var developers []turtle.Object
+	var developers []ttl.Object
 	for _, d := range p.Developer {
 		developers = append(developers, &d.IRI)
 	}
-	t.PredicateObjectList = []turtle.PredicateObject{
+	t.PredicateObjectList = []ttl.PredicateObject{
 		{
-			Verb:       new(turtle.A),
-			ObjectList: []turtle.Object{&turtle.IRI{Prefixed: true, Value: "doap:Project"}},
+			Verb:       new(ttl.A),
+			ObjectList: []ttl.Object{&ttl.IRI{Prefixed: true, Value: "doap:Project"}},
 		},
 		{
-			Verb:       &turtle.IRI{Prefixed: true, Value: "doap:name"},
-			ObjectList: []turtle.Object{&turtle.StringLiteral{Value: p.Name}},
+			Verb:       &ttl.IRI{Prefixed: true, Value: "doap:name"},
+			ObjectList: []ttl.Object{&ttl.StringLiteral{Value: p.Name}},
 		},
 		{
-			Verb:       &turtle.IRI{Prefixed: true, Value: "doap:homepage"},
-			ObjectList: []turtle.Object{&turtle.IRI{Value: p.Homepage}},
+			Verb:       &ttl.IRI{Prefixed: true, Value: "doap:homepage"},
+			ObjectList: []ttl.Object{&ttl.IRI{Value: p.Homepage}},
 		},
 		{
-			Verb:       &turtle.IRI{Prefixed: true, Value: "doap:license"},
-			ObjectList: []turtle.Object{&turtle.IRI{Value: p.License}},
+			Verb:       &ttl.IRI{Prefixed: true, Value: "doap:license"},
+			ObjectList: []ttl.Object{&ttl.IRI{Value: p.License}},
 		},
 		{
-			Verb:       &turtle.IRI{Prefixed: true, Value: "doap:description"},
-			ObjectList: []turtle.Object{&turtle.StringLiteral{Value: p.Description, LanguageTag: "en"}},
+			Verb:       &ttl.IRI{Prefixed: true, Value: "doap:description"},
+			ObjectList: []ttl.Object{&ttl.StringLiteral{Value: p.Description, LanguageTag: "en"}},
 		},
 		{
-			Verb:       &turtle.IRI{Prefixed: true, Value: "doap:created"},
-			ObjectList: []turtle.Object{&turtle.StringLiteral{Value: p.Created.Format("2006-01-02-0700"), DatatypeIRI: "xsd:date"}},
+			Verb:       &ttl.IRI{Prefixed: true, Value: "doap:created"},
+			ObjectList: []ttl.Object{&ttl.StringLiteral{Value: p.Created.Format("2006-01-02-0700"), DatatypeIRI: "xsd:date"}},
 		},
 		{
-			Verb:       &turtle.IRI{Prefixed: true, Value: "doap:programming-language"},
-			ObjectList: []turtle.Object{&turtle.IRI{Value: p.ProgrammingLanguage}},
+			Verb:       &ttl.IRI{Prefixed: true, Value: "doap:programming-language"},
+			ObjectList: []ttl.Object{&ttl.IRI{Value: p.ProgrammingLanguage}},
 		},
 		{
-			Verb:       &turtle.IRI{Prefixed: true, Value: "doap:implements"},
+			Verb:       &ttl.IRI{Prefixed: true, Value: "doap:implements"},
 			ObjectList: implements,
 		},
 		{
-			Verb:       &turtle.IRI{Prefixed: true, Value: "doap:developer"},
+			Verb:       &ttl.IRI{Prefixed: true, Value: "doap:developer"},
 			ObjectList: developers,
 		},
 	}
@@ -125,23 +125,23 @@ func (p Project) line() turtle.Statement {
 }
 
 type Report struct {
-	prefixes  []turtle.Statement
+	prefixes  []ttl.Statement
 	Project   Project
 	testcases []TestCase
 }
 
 func NewReport() *Report {
 	return &Report{
-		prefixes: []turtle.Statement{
-			&turtle.Prefix{Name: "dc:", IRI: "http://purl.org/dc/elements/1.1/"},
-			&turtle.Prefix{Name: "rdft:", IRI: "http://www.w3.org/ns/rdftest#"},
-			&turtle.Prefix{Name: "earl:", IRI: "http://www.w3.org/ns/earl#"},
-			&turtle.Prefix{Name: "foaf:", IRI: "http://xmlns.com/foaf/0.1/"},
-			&turtle.Prefix{Name: "turtletest:", IRI: "http://www.w3.org/2013/TurtleTests/manifest.ttl#"},
-			&turtle.Prefix{Name: "dct:", IRI: "http://purl.org/dc/terms/"},
-			&turtle.Prefix{Name: "xsd:", IRI: "http://www.w3.org/2001/XMLSchema#"},
-			&turtle.Prefix{Name: "rdf:", IRI: "http://www.w3.org/1999/02/22-rdf-syntax-ns#"},
-			&turtle.Prefix{Name: "doap:", IRI: "http://usefulinc.com/ns/doap#"},
+		prefixes: []ttl.Statement{
+			&ttl.Prefix{Name: "dc:", IRI: "http://purl.org/dc/elements/1.1/"},
+			&ttl.Prefix{Name: "rdft:", IRI: "http://www.w3.org/ns/rdftest#"},
+			&ttl.Prefix{Name: "earl:", IRI: "http://www.w3.org/ns/earl#"},
+			&ttl.Prefix{Name: "foaf:", IRI: "http://xmlns.com/foaf/0.1/"},
+			&ttl.Prefix{Name: "turtletest:", IRI: "http://www.w3.org/2013/TurtleTests/manifest.ttl#"},
+			&ttl.Prefix{Name: "dct:", IRI: "http://purl.org/dc/terms/"},
+			&ttl.Prefix{Name: "xsd:", IRI: "http://www.w3.org/2001/XMLSchema#"},
+			&ttl.Prefix{Name: "rdf:", IRI: "http://www.w3.org/1999/02/22-rdf-syntax-ns#"},
+			&ttl.Prefix{Name: "doap:", IRI: "http://usefulinc.com/ns/doap#"},
 		},
 	}
 }
@@ -150,8 +150,12 @@ func (r *Report) AddTestCase(tc TestCase) {
 	r.testcases = append(r.testcases, tc)
 }
 
+func (r *Report) Len() int {
+	return len(r.testcases)
+}
+
 func (r *Report) String() string {
-	var d turtle.Document
+	var d ttl.Document
 	d = append(d, r.prefixes...)
 	for _, dev := range r.Project.Developer {
 		d = append(d, dev.line())
@@ -164,52 +168,52 @@ func (r *Report) String() string {
 }
 
 type TestCase struct {
-	AssertedBy turtle.IRI
+	AssertedBy ttl.IRI
 	Mode       TestMode
 	Result     TestResult
-	Subject    turtle.IRI
-	Test       turtle.IRI
+	Subject    ttl.IRI
+	Test       ttl.IRI
 }
 
-func (tc TestCase) line() turtle.Statement {
-	var b turtle.Triple
-	b.BlankNodePropertyList = turtle.BlankNodePropertyList{
+func (tc TestCase) line() ttl.Statement {
+	var b ttl.Triple
+	b.BlankNodePropertyList = ttl.BlankNodePropertyList{
 		{
-			Verb:       new(turtle.A),
-			ObjectList: []turtle.Object{&turtle.IRI{Prefixed: true, Value: "earl:Assertion"}},
+			Verb:       new(ttl.A),
+			ObjectList: []ttl.Object{&ttl.IRI{Prefixed: true, Value: "earl:Assertion"}},
 		},
 		{
-			Verb:       &turtle.IRI{Prefixed: true, Value: "earl:assertedBy"},
-			ObjectList: []turtle.Object{&tc.AssertedBy},
+			Verb:       &ttl.IRI{Prefixed: true, Value: "earl:assertedBy"},
+			ObjectList: []ttl.Object{&tc.AssertedBy},
 		},
 		{
-			Verb:       &turtle.IRI{Prefixed: true, Value: "earl:mode"},
-			ObjectList: []turtle.Object{&turtle.IRI{Prefixed: true, Value: string(tc.Mode)}},
+			Verb:       &ttl.IRI{Prefixed: true, Value: "earl:mode"},
+			ObjectList: []ttl.Object{&ttl.IRI{Prefixed: true, Value: string(tc.Mode)}},
 		},
 		{
-			Verb: &turtle.IRI{Prefixed: true, Value: "earl:result"},
-			ObjectList: []turtle.Object{turtle.BlankNodePropertyList{
+			Verb: &ttl.IRI{Prefixed: true, Value: "earl:result"},
+			ObjectList: []ttl.Object{ttl.BlankNodePropertyList{
 				{
-					Verb:       new(turtle.A),
-					ObjectList: []turtle.Object{&turtle.IRI{Prefixed: true, Value: "earl:TestResult"}},
+					Verb:       new(ttl.A),
+					ObjectList: []ttl.Object{&ttl.IRI{Prefixed: true, Value: "earl:TestResult"}},
 				},
 				{
-					Verb:       &turtle.IRI{Prefixed: true, Value: "dct:date"},
-					ObjectList: []turtle.Object{&tc.Result.Date},
+					Verb:       &ttl.IRI{Prefixed: true, Value: "dct:date"},
+					ObjectList: []ttl.Object{&tc.Result.Date},
 				},
 				{
-					Verb:       &turtle.IRI{Prefixed: true, Value: "earl:outcome"},
-					ObjectList: []turtle.Object{&turtle.IRI{Prefixed: true, Value: string(tc.Result.Outcome)}},
+					Verb:       &ttl.IRI{Prefixed: true, Value: "earl:outcome"},
+					ObjectList: []ttl.Object{&ttl.IRI{Prefixed: true, Value: string(tc.Result.Outcome)}},
 				},
 			}},
 		},
 		{
-			Verb:       &turtle.IRI{Prefixed: true, Value: "earl:subject"},
-			ObjectList: []turtle.Object{&tc.Subject},
+			Verb:       &ttl.IRI{Prefixed: true, Value: "earl:subject"},
+			ObjectList: []ttl.Object{&tc.Subject},
 		},
 		{
-			Verb:       &turtle.IRI{Prefixed: true, Value: "earl:test"},
-			ObjectList: []turtle.Object{&tc.Test},
+			Verb:       &ttl.IRI{Prefixed: true, Value: "earl:test"},
+			ObjectList: []ttl.Object{&tc.Test},
 		},
 	}
 	return &b
@@ -235,6 +239,6 @@ const (
 )
 
 type TestResult struct {
-	Date    turtle.StringLiteral
+	Date    ttl.StringLiteral
 	Outcome OutcomeValue
 }

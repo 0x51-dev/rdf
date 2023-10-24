@@ -12,7 +12,6 @@ func TestBlankNodeLabel(t *testing.T) {
 	for _, test := range []string{
 		"_:0",
 		"_:a",
-		"_::",
 		"_:aa",
 		"_:a.a",
 		"_:a-",
@@ -46,7 +45,7 @@ func TestObject(t *testing.T) {
 
 func TestPN_CHARS(t *testing.T) {
 	for _, char := range []rune{
-		'A', 'Z', 'a', 'z', '0', '9', ':',
+		'A', 'Z', 'a', 'z', '0', '9',
 	} {
 		p, err := parser.New([]rune{char})
 		if err != nil {
@@ -57,7 +56,7 @@ func TestPN_CHARS(t *testing.T) {
 		}
 	}
 	for _, char := range []rune{
-		'.',
+		'.', ':',
 	} {
 		p, err := parser.New([]rune{char})
 		if err != nil {

@@ -1,3 +1,0 @@
-@prefix : <http://example.org/> .
-
-(:Fred :Wilma :Dino) :approved :resolution123 .

@@ -31,6 +31,7 @@ func TestBlankNodePropertyList(t *testing.T) {
 		 foaf:name "Eve" ] ;
     	 foaf:mbox <bob@example.com> ]`,
 		"[ :a :b ]",
+		"[:p(<http://example/o>)]",
 	} {
 		p, err := NewParser([]rune(test))
 		if err != nil {
@@ -52,6 +53,33 @@ func TestCollection(t *testing.T) {
 			t.Fatal(err)
 		}
 		if _, err := p.Parse(op.And{Collection, op.EOF{}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestDocument(t *testing.T) {
+	for _, test := range []string{
+		`<http://example.org/#spiderman> <http://www.perceive.net/schemas/relationship/enemyOf> <http://example.org/#green-goblin> .`,
+		`[] foaf:knows [ foaf:name "Bob" ] .`,
+		`:subject :predicate ( _:a _:b _:c ) .`,
+		`<>  rdf:type mf:Manifest ;
+			 mf:name "N-Triples tests" ;
+			 mf:entries
+			 (
+			 <#lantag_with_subtag>
+			 <#minimal_whitespace>
+			 ) .`,
+		`<a> <b> <c>.`,
+		"[ :a :b ] :c :d .",
+		"<s> <p> 123.E+1 .",
+		"[ :p (:o) ] .",
+	} {
+		p, err := NewParser([]rune(test))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := p.Parse(op.And{Document, op.EOF{}}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -296,32 +324,6 @@ func TestString(t *testing.T) {
 			t.Fatal(err)
 		}
 		if _, err := p.Parse(op.And{String, op.EOF{}}); err != nil {
-			t.Fatal(err)
-		}
-	}
-}
-
-func TestTriples(t *testing.T) {
-	for _, test := range []string{
-		`<http://example.org/#spiderman> <http://www.perceive.net/schemas/relationship/enemyOf> <http://example.org/#green-goblin> .`,
-		`[] foaf:knows [ foaf:name "Bob" ] .`,
-		`:subject :predicate ( _:a _:b _:c ) .`,
-		`<>  rdf:type mf:Manifest ;
-			 mf:name "N-Triples tests" ;
-			 mf:entries
-			 (
-			 <#lantag_with_subtag>
-			 <#minimal_whitespace>
-			 ) .`,
-		`<a> <b> <c>.`,
-		"[ :a :b ] :c :d .",
-		"<s> <p> 123.E+1 .",
-	} {
-		p, err := NewParser([]rune(test))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := p.Parse(op.And{Triples, op.EOF{}}); err != nil {
 			t.Fatal(err)
 		}
 	}

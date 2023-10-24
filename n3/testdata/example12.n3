@@ -1,5 +1,0 @@
-@prefix i18n: <https://www.w3.org/ns/i18n#> .
-@prefix foaf: <http://xmlns.com/foaf/0.1/> .
-@prefix : <http://example.org/> .
-
-:spiderman foaf:name "الرجل العنكبوت"^^i18n:ar-EG_rtl .

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"github.com/0x51-dev/rdf/internal/project"
 	"github.com/0x51-dev/rdf/internal/testsuite"
-	"github.com/0x51-dev/rdf/ntriples"
-	"github.com/0x51-dev/rdf/turtle"
+	nt "github.com/0x51-dev/rdf/ntriples"
+	ttl "github.com/0x51-dev/rdf/turtle"
 	"os"
 	"testing"
 )
@@ -33,12 +33,36 @@ var (
 )
 
 func Example_example1() {
-	doc, _ := ntriples.ParseDocument(example1)
+	doc, _ := nt.ParseDocument(example1)
 	fmt.Println(doc)
 	// Output:
 	// <http://one.example/subject1> <http://one.example/predicate1> <http://one.example/object1> .
 	// _:subject1 <http://an.example/predicate1> "object1" .
 	// _:subject2 <http://an.example/predicate2> "object2" .
+}
+
+func TestDocument_Equal(t *testing.T) {
+	a := nt.IRIReference("https://example.com/a")
+	b := nt.IRIReference("https://example.com/b")
+	d := nt.Document{
+		nt.Triple{
+			Subject:   a,
+			Predicate: b,
+			Object:    nt.BlankNode("_:b1"),
+		},
+	}
+	if !d.Equal(d) {
+		t.Error()
+	}
+	if !d.Equal(nt.Document{
+		nt.Triple{
+			Subject:   a,
+			Predicate: b,
+			Object:    nt.BlankNode("_:b2"),
+		},
+	}) {
+		t.Error()
+	}
 }
 
 func TestExamples(t *testing.T) {
@@ -51,7 +75,7 @@ func TestExamples(t *testing.T) {
 		{example3, 7},
 		{example4, 2},
 	} {
-		doc, err := ntriples.ParseDocument(test.doc)
+		doc, err := nt.ParseDocument(test.doc)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -60,7 +84,7 @@ func TestExamples(t *testing.T) {
 		}
 
 		{ // fmt.Stringer
-			doc, err := ntriples.ParseDocument(doc.String())
+			doc, err := nt.ParseDocument(doc.String())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -77,14 +101,14 @@ func TestSuite(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	report := project.NewReport(turtle.IRI{Value: "http://www.w3.org/2013/N-TriplesTests/manifest.ttl#"})
+	report := project.NewReport(ttl.IRI{Value: "http://www.w3.org/2013/N-TriplesTests/manifest.ttl#"})
 	for _, k := range manifest.Keys {
 		e := manifest.Entries[k]
 		raw, err := suite.ReadFile(fmt.Sprintf("testdata/suite/%s", e.Action))
 		if err != nil {
 			t.Fatal(err)
 		}
-		doc, err := ntriples.ParseDocument(string(raw))
+		doc, err := nt.ParseDocument(string(raw))
 		switch e.Type {
 		case "rdft:TestNTriplesPositiveSyntax":
 			t.Run(e.Name, func(t *testing.T) {
@@ -94,7 +118,7 @@ func TestSuite(t *testing.T) {
 				}
 
 				// fmt.Stringer
-				doc2, err := ntriples.ParseDocument(doc.String())
+				doc2, err := nt.ParseDocument(doc.String())
 				if err != nil {
 					report.AddTest(e.Name, testsuite.Failed)
 					t.Fatal(err)
@@ -120,6 +144,7 @@ func TestSuite(t *testing.T) {
 		}
 	}
 
+	t.Log("Total tests:", report.Len())
 	if os.Getenv("TEST_SUITE_REPORT") == "true" {
 		_ = os.WriteFile("testdata/suite/report.ttl", []byte(report.String()), 0644)
 	}

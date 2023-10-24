@@ -3,27 +3,27 @@ package testsuite_test
 import (
 	"fmt"
 	"github.com/0x51-dev/rdf/internal/testsuite"
-	"github.com/0x51-dev/rdf/turtle"
+	ttl "github.com/0x51-dev/rdf/turtle"
 	"time"
 )
 
 func ExampleNewReport() {
 	r := testsuite.NewReport()
 	r.AddTestCase(testsuite.TestCase{
-		AssertedBy: turtle.IRI{Value: "https://github.com/q-uint"},
+		AssertedBy: ttl.IRI{Value: "https://github.com/q-uint"},
 		Mode:       testsuite.Automatic,
 		Result: testsuite.TestResult{
-			Date: turtle.StringLiteral{
+			Date: ttl.StringLiteral{
 				Value:       "2023-09-09+00:00",
 				DatatypeIRI: "xsd:date",
 			},
 			Outcome: testsuite.Passed,
 		},
-		Subject: turtle.IRI{Value: "https://github.com/0x51-dev/rdf"},
-		Test:    turtle.IRI{Value: "http://example.com/test"},
+		Subject: ttl.IRI{Value: "https://github.com/0x51-dev/rdf"},
+		Test:    ttl.IRI{Value: "http://example.com/test"},
 	})
 	r.Project = testsuite.Project{
-		IRI:                 turtle.IRI{Value: "https://github.com/0x51-dev/rdf"},
+		IRI:                 ttl.IRI{Value: "https://github.com/0x51-dev/rdf"},
 		Name:                "RDF",
 		Homepage:            "https://github.com/0x51-dev/rdf",
 		License:             "https://www.apache.org/licenses/LICENSE-2.0",
@@ -35,7 +35,7 @@ func ExampleNewReport() {
 		},
 		Developer: []testsuite.Developer{
 			{
-				IRI:      turtle.IRI{Value: "https://github.com/q-uint"},
+				IRI:      ttl.IRI{Value: "https://github.com/q-uint"},
 				Name:     "Quint Daenen",
 				Title:    "Implementor",
 				MBox:     "mailto:quint@0x51.dev",

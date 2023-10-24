@@ -19,7 +19,7 @@ func ToggleValidation(enabled bool) {
 
 type BlankNode string
 
-func parseBlankNodeLabel(n *parser.Node) (*BlankNode, error) {
+func ParseBlankNodeLabel(n *parser.Node) (*BlankNode, error) {
 	if n.Name != "BlankNodeLabel" {
 		return nil, fmt.Errorf("blank-node: unknown %s", n.Name)
 	}
@@ -27,13 +27,28 @@ func parseBlankNodeLabel(n *parser.Node) (*BlankNode, error) {
 	return &bn, nil
 }
 
-func (n *BlankNode) String() string {
-	return string(*n)
+// Equal returns true if the blank node is equal to the given value.
+func (n BlankNode) Equal(v any) bool {
+	if v, ok := v.(BlankNode); ok {
+		return n.equal(v)
+	}
+	if v, ok := v.(*BlankNode); ok && v != nil {
+		return n.equal(*v)
+	}
+	return false
 }
 
-func (n *BlankNode) object() {}
+func (n BlankNode) String() string {
+	return fmt.Sprintf("_:%s", string(n))
+}
 
-func (n *BlankNode) subject() {}
+func (n BlankNode) equal(other BlankNode) bool {
+	return n == other
+}
+
+func (n BlankNode) object() {}
+
+func (n BlankNode) subject() {}
 
 type Document []Triple
 
@@ -61,13 +76,29 @@ func parseDocument(n *parser.Node) (Document, error) {
 	}
 	var triples []Triple
 	for _, n := range n.Children() {
-		t, err := parseTriple(n)
+		t, err := ParseTriple(n)
 		if err != nil {
 			return nil, err
 		}
 		triples = append(triples, *t)
 	}
 	return triples, nil
+}
+
+// Equal returns true if the document is equal to the given value. Both document will be assumed sorted.
+// NOTE: blank nodes will be compared, not by value, but by relation in the document.
+func (d Document) Equal(other Document) bool {
+	if len(d) != len(other) {
+		return false
+	}
+	d, o := d.normalizeBlankNodes(), other.normalizeBlankNodes()
+	for i := range d {
+		t0, t1 := d[i], o[i]
+		if !t0.equal(t1, true) {
+			return false
+		}
+	}
+	return true
 }
 
 func (d Document) String() string {
@@ -78,9 +109,45 @@ func (d Document) String() string {
 	return s
 }
 
+func (d Document) normalizeBlankNodes() (n Document) {
+	var i int
+	mapping := make(map[string]string)
+	for _, t := range d {
+		subject := t.Subject
+		if b, ok := t.Subject.(BlankNode); ok {
+			if bn, ok := mapping[string(b)]; !ok {
+				bn = fmt.Sprintf("%d", i)
+				mapping[string(b)] = bn
+				subject = (*BlankNode)(&bn)
+				i++
+			} else {
+				subject = (*BlankNode)(&bn)
+			}
+		}
+		predicate := t.Predicate
+		object := t.Object
+		if b, ok := t.Object.(BlankNode); ok {
+			if bn, ok := mapping[string(b)]; !ok {
+				bn = fmt.Sprintf("%d", i)
+				mapping[string(b)] = bn
+				object = (*BlankNode)(&bn)
+				i++
+			} else {
+				object = (*BlankNode)(&bn)
+			}
+		}
+		n = append(n, Triple{
+			Subject:   subject,
+			Predicate: predicate,
+			Object:    object,
+		})
+	}
+	return
+}
+
 type IRIReference string
 
-func parseIRIReference(n *parser.Node) (*IRIReference, error) {
+func ParseIRIReference(n *parser.Node) (*IRIReference, error) {
 	if n.Name != "IRIReference" {
 		return nil, fmt.Errorf("iri-reference: unknown %s", n.Name)
 	}
@@ -93,11 +160,22 @@ func parseIRIReference(n *parser.Node) (*IRIReference, error) {
 	return &ref, nil
 }
 
-func parsePredicate(n *parser.Node) (*IRIReference, error) {
+func ParsePredicate(n *parser.Node) (*IRIReference, error) {
 	if n.Name != "Predicate" {
 		return nil, fmt.Errorf("predicate: unknown %s", n.Name)
 	}
-	return parseIRIReference(n.Children()[0])
+	return ParseIRIReference(n.Children()[0])
+}
+
+// Equal returns true if the IRI reference is equal to the given value.
+func (r IRIReference) Equal(v any) bool {
+	if v, ok := v.(IRIReference); ok {
+		return r.equal(v)
+	}
+	if v, ok := v.(*IRIReference); ok && v != nil {
+		return r.equal(*v)
+	}
+	return false
 }
 
 func (r IRIReference) IsValid() bool {
@@ -122,6 +200,10 @@ func (r IRIReference) String() string {
 	return fmt.Sprintf("<%s>", string(r))
 }
 
+func (r IRIReference) equal(other IRIReference) bool {
+	return r == other
+}
+
 func (r IRIReference) object() {}
 
 func (r IRIReference) subject() {}
@@ -132,7 +214,7 @@ type Literal struct {
 	Language  string
 }
 
-func parseLiteral(n *parser.Node) (*Literal, error) {
+func ParseLiteral(n *parser.Node) (*Literal, error) {
 	if n.Name != "Literal" {
 		return nil, fmt.Errorf("literal: unknown %s", n.Name)
 	}
@@ -142,7 +224,7 @@ func parseLiteral(n *parser.Node) (*Literal, error) {
 		case "StringLiteral":
 			literal.Value = n.Value()
 		case "IRIReference":
-			ref, err := parseIRIReference(n)
+			ref, err := ParseIRIReference(n)
 			if err != nil {
 				return nil, err
 			}
@@ -156,6 +238,17 @@ func parseLiteral(n *parser.Node) (*Literal, error) {
 	return &literal, nil
 }
 
+// Equal returns true if the literal is equal to the given value.
+func (l Literal) Equal(v any) bool {
+	if v, ok := v.(Literal); ok {
+		return l.equal(v)
+	}
+	if v, ok := v.(*Literal); ok && v != nil {
+		return l.equal(*v)
+	}
+	return false
+}
+
 func (l Literal) String() string {
 	if l.Reference != nil {
 		return fmt.Sprintf(`"%s"^^%s`, l.Value, l.Reference)
@@ -166,43 +259,59 @@ func (l Literal) String() string {
 	return fmt.Sprintf(`"%s"`, l.Value)
 }
 
+func (l Literal) equal(other Literal) bool {
+	if l.Reference != nil && !l.Reference.Equal(other.Reference) {
+		return false
+	}
+	if l.Reference == nil && other.Reference != nil {
+		return false
+	}
+	return l.Value == other.Value && l.Language == other.Language
+}
+
 func (l Literal) object() {}
 
+// Object is either an IRI, a blank node, or a literal.
 type Object interface {
 	object()
 
+	Equal(v any) bool
 	fmt.Stringer
 }
 
-func parseObject(n *parser.Node) (Object, error) {
+func ParseObject(n *parser.Node) (Object, error) {
 	if n.Name != "Object" {
 		return nil, fmt.Errorf("object: unknown: %s", n.Name)
 	}
 	switch n = n.Children()[0]; n.Name {
 	case "IRIReference":
-		return parseIRIReference(n)
+		return ParseIRIReference(n)
 	case "BlankNodeLabel":
-		return parseBlankNodeLabel(n)
+		return ParseBlankNodeLabel(n)
 	case "Literal":
-		return parseLiteral(n)
+		return ParseLiteral(n)
 	default:
 		return nil, fmt.Errorf("object: unknown: %s", n.Name)
 	}
 }
 
+// Subject is either an IRI or a blank node.
 type Subject interface {
 	subject()
+
+	Equal(v any) bool
+	fmt.Stringer
 }
 
-func parseSubject(n *parser.Node) (Subject, error) {
+func ParseSubject(n *parser.Node) (Subject, error) {
 	if n.Name != "Subject" {
 		return nil, fmt.Errorf("subject: unknown: %s", n.Name)
 	}
 	switch n = n.Children()[0]; n.Name {
 	case "IRIReference":
-		return parseIRIReference(n)
+		return ParseIRIReference(n)
 	case "BlankNodeLabel":
-		return parseBlankNodeLabel(n)
+		return ParseBlankNodeLabel(n)
 	default:
 		return nil, fmt.Errorf("subject: unknown: %s", n.Name)
 	}
@@ -214,7 +323,7 @@ type Triple struct {
 	Object    Object
 }
 
-func parseTriple(n *parser.Node) (*Triple, error) {
+func ParseTriple(n *parser.Node) (*Triple, error) {
 	if n.Name != "Triple" {
 		return nil, fmt.Errorf("triple: unknown %s", n.Name)
 	}
@@ -222,15 +331,15 @@ func parseTriple(n *parser.Node) (*Triple, error) {
 		return nil, fmt.Errorf("triple: expected 3 children")
 	}
 	children := n.Children()
-	s, err := parseSubject(children[0])
+	s, err := ParseSubject(children[0])
 	if err != nil {
 		return nil, err
 	}
-	p, err := parsePredicate(children[1])
+	p, err := ParsePredicate(children[1])
 	if err != nil {
 		return nil, err
 	}
-	o, err := parseObject(children[2])
+	o, err := ParseObject(children[2])
 	if err != nil {
 		return nil, err
 	}
@@ -241,6 +350,63 @@ func parseTriple(n *parser.Node) (*Triple, error) {
 	}, nil
 }
 
+// Equal returns true if the triple is equal to the given value.
+// NOTE: comparing blank nodes does not really make sense, as they are not globally unique.
+func (t Triple) Equal(v any) bool {
+	if o, ok := v.(Triple); ok {
+		return t.equal(o, false)
+	}
+	if o, ok := v.(*Triple); ok && o != nil {
+		return t.equal(*o, false)
+	}
+	return false
+}
+
 func (t Triple) String() string {
 	return fmt.Sprintf("%s %s %s .", t.Subject, t.Predicate, t.Object)
+}
+
+func (t Triple) equal(other Triple, checkBlankNode bool) bool {
+	switch t.Subject.(type) {
+	case BlankNode:
+		if !checkBlankNode {
+			_, isBn := other.Subject.(BlankNode)
+			_, isBnPtr := other.Subject.(*BlankNode)
+			if !isBn && !isBnPtr {
+				return false
+			}
+		} else {
+			if !t.Subject.Equal(other.Subject) {
+				return false
+			}
+		}
+	default:
+		if !t.Subject.Equal(other.Subject) {
+			return false
+		}
+	}
+
+	if !t.Predicate.Equal(other.Predicate) {
+		return false
+	}
+
+	switch t.Object.(type) {
+	case BlankNode:
+		if !checkBlankNode {
+			_, isBn := other.Subject.(BlankNode)
+			_, isBnPtr := other.Subject.(*BlankNode)
+			if !isBn && !isBnPtr {
+				return false
+			}
+		} else {
+			if !t.Subject.Equal(other.Subject) {
+				return false
+			}
+		}
+	default:
+		if !t.Object.Equal(other.Object) {
+			return false
+		}
+	}
+	return true
 }

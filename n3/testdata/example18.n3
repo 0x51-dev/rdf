@@ -1,4 +1,0 @@
-@prefix : <http://example.org/> .
-
-:description_logic_handbook a :Book ;
-  :author ( :deborah :daniele :peter) .

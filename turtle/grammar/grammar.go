@@ -14,7 +14,7 @@ var (
 			nt.OWhitespace,
 			op.Or{
 				Directive,
-				Triples,
+				op.And{Triples, WSPLNC, '.'},
 				op.And{op.Optional{Value: nt.Comment}, op.EndOfLine{}},
 			},
 		}},
@@ -26,8 +26,8 @@ var (
 	PrefixID = op.Capture{
 		Name: "Prefix",
 		Value: op.And{
-			"@prefix", nt.Whitespace,
-			op.Capture{Name: "Prefix", Value: PNAME_NS}, nt.Whitespace,
+			"@prefix", WSPLNC,
+			op.Capture{Name: "Prefix", Value: PNAME_NS}, nt.OWhitespace,
 			nt.IRIReference, nt.OWhitespace,
 			'.',
 		},
@@ -35,7 +35,7 @@ var (
 	Base = op.Capture{
 		Name: "Base",
 		Value: op.And{
-			"@base", nt.Whitespace,
+			"@base", WSPLNC,
 			nt.IRIReference, nt.OWhitespace,
 			'.',
 		},
@@ -44,8 +44,8 @@ var (
 	SparqlPrefix = op.Capture{
 		Name: "Prefix",
 		Value: op.And{
-			PREFIX, nt.Whitespace,
-			op.Capture{Name: "Prefix", Value: PNAME_NS}, nt.Whitespace,
+			PREFIX, nt.OWhitespace,
+			op.Capture{Name: "Prefix", Value: PNAME_NS}, nt.OWhitespace,
 			nt.IRIReference,
 		},
 	}
@@ -53,33 +53,28 @@ var (
 	SparqlBase = op.Capture{
 		Name: "Base",
 		Value: op.And{
-			BASE, nt.Whitespace,
+			BASE, nt.OWhitespace,
 			nt.IRIReference,
 		},
 	}
 	Triples = op.Capture{
 		Name: "Triples",
-		Value: op.And{
-			op.Or{
-				op.Capture{
-					Name: "TripleSubject",
-					Value: op.And{
-						Subject,
-						WSPLNC,
-						PredicateObjectList,
-					},
-				},
-				op.Capture{
-					Name: "TripleBlankNodePropertyList",
-					Value: op.And{
-						BlankNodePropertyList,
-						WSPLNC,
-						op.Optional{Value: PredicateObjectList},
-					},
+		Value: op.Or{
+			op.Capture{
+				Name: "TripleSubject",
+				Value: op.And{
+					Subject,
+					WSPLNC,
+					PredicateObjectList,
 				},
 			},
-			WSPLNC,
-			'.',
+			op.Capture{
+				Name: "TripleBlankNodePropertyList",
+				Value: op.And{
+					BlankNodePropertyList,
+					op.Optional{Value: op.And{WSPLNC, PredicateObjectList}},
+				},
+			},
 		},
 	}
 	PredicateObject = op.Capture{
@@ -95,10 +90,8 @@ var (
 		Value: op.And{
 			PredicateObject,
 			op.ZeroOrMore{Value: op.And{
-				WSPLNC,
-				';',
-				WSPLNC,
-				op.Optional{Value: PredicateObject},
+				WSPLNC, ';',
+				op.Optional{Value: op.And{WSPLNC, PredicateObject}},
 			}},
 		},
 	}
@@ -135,14 +128,8 @@ var (
 		Value: op.Or{RDFLiteral, NumericLiteral, BooleanLiteral},
 	}
 	BlankNodePropertyList = op.Capture{
-		Name: "BlankNodePropertyList",
-		Value: op.And{
-			'[',
-			WSPLNC,
-			PredicateObjectList,
-			WSPLNC,
-			']',
-		},
+		Name:  "BlankNodePropertyList",
+		Value: op.And{'[', WSPLNC, PredicateObjectList, WSPLNC, ']'},
 	}
 	Collection = op.Capture{
 		Name: "Collection",
@@ -153,8 +140,8 @@ var (
 				Object,
 				WSPLNC,
 			}},
-			WSPLNC,
-			nt.OWhitespace, ')'},
+			')',
+		},
 	}
 	NumericLiteral = op.Capture{
 		Name:  "NumericLiteral",
@@ -171,7 +158,7 @@ var (
 	String = op.Or{
 		STRING_LITERAL_LONG_SINGLE_QUOTE,
 		STRING_LITERAL_LONG_QUOTE,
-		STRING_LITERAL_QUOTE,
+		nt.StringLiteral,
 		STRING_LITERAL_SINGLE_QUOTE,
 	}
 	IRI = op.Capture{
@@ -251,26 +238,14 @@ var (
 		op.Optional{Value: op.Or{'+', '-'}},
 		op.OneOrMore{Value: op.RuneRange{Min: '0', Max: '9'}},
 	}
-	STRING_LITERAL_QUOTE = op.And{
-		'"',
-		op.Capture{
-			Name: "StringLiteralQ",
-			Value: op.ZeroOrMore{Value: op.Or{
-				op.AnyBut{Value: op.Or{rune(0x22), rune(0x5C), rune(0x0A), rune(0x0D)}},
-				ECHAR,
-				UCHAR,
-			}},
-		},
-		'"',
-	}
 	STRING_LITERAL_SINGLE_QUOTE = op.And{
 		'\'',
 		op.Capture{
 			Name: "StringLiteralSQ",
 			Value: op.ZeroOrMore{Value: op.Or{
 				op.AnyBut{Value: op.Or{rune(0x27), rune(0x5C), rune(0x0A), rune(0x0D)}},
-				ECHAR,
-				UCHAR,
+				nt.EscapedCharacter,
+				nt.UnicodeCharacter,
 			}},
 		},
 		'\'',
@@ -283,8 +258,8 @@ var (
 				op.Optional{Value: op.Or{"\"\"", '"'}},
 				op.Or{
 					op.AnyBut{Value: op.Or{'"', '\\'}},
-					ECHAR,
-					UCHAR,
+					nt.EscapedCharacter,
+					nt.UnicodeCharacter,
 				},
 			}},
 		},
@@ -298,20 +273,15 @@ var (
 				op.Optional{Value: op.Or{"''", '\''}},
 				op.Or{
 					op.AnyBut{Value: op.Or{'\'', '\\'}},
-					ECHAR,
-					UCHAR,
+					nt.EscapedCharacter,
+					nt.UnicodeCharacter,
 				},
 			}},
 		},
 		"'''",
 	}
-	UCHAR = op.Or{
-		op.And{"\\u", nt.Hexadecimal, nt.Hexadecimal, nt.Hexadecimal, nt.Hexadecimal},
-		op.And{"\\U", nt.Hexadecimal, nt.Hexadecimal, nt.Hexadecimal, nt.Hexadecimal, nt.Hexadecimal, nt.Hexadecimal, nt.Hexadecimal, nt.Hexadecimal},
-	}
-	ECHAR = op.And{'\\', op.Or{'t', 'b', 'n', 'r', 'f', '"', '\'', '\\'}}
-	WS    = op.Or{rune(0x20), rune(0x09), rune(0x0D), rune(0x0A)}
-	ANON  = op.Capture{
+	WS   = op.Or{rune(0x20), rune(0x09), rune(0x0D), rune(0x0A)}
+	ANON = op.Capture{
 		Name:  "Anon",
 		Value: op.And{'[', op.ZeroOrMore{Value: WS}, ']'},
 	}

@@ -93,23 +93,25 @@ var (
 		},
 		'"',
 	}
-	BlankNodeLabel = op.Capture{
-		Name: "BlankNodeLabel",
-		Value: op.And{
-			"_:",
-			op.Or{op.RuneRange{Min: '0', Max: '9'}, PN_CHARS_U},
-			op.Optional{Value: op.And{
-				op.ZeroOrMore{Value: op.And{
-					op.Or{PN_CHARS, '.'},
-					// To make sure that the last character is not a dot.
-					op.Peek{Value: op.Or{
-						PN_CHARS,              // Either end or another character.
-						op.And{'.', PN_CHARS}, // '.' always followed by a '.' or character.
-						op.And{'.', '.'},
+	BlankNodeLabel = op.And{
+		"_:",
+		op.Capture{
+			Name: "BlankNodeLabel",
+			Value: op.And{
+				op.Or{op.RuneRange{Min: '0', Max: '9'}, PN_CHARS_U},
+				op.Optional{Value: op.And{
+					op.ZeroOrMore{Value: op.And{
+						op.Or{PN_CHARS, '.'},
+						// To make sure that the last character is not a dot.
+						op.Peek{Value: op.Or{
+							PN_CHARS,              // Either end or another character.
+							op.And{'.', PN_CHARS}, // '.' always followed by a '.' or character.
+							op.And{'.', '.'},
+						}},
 					}},
+					PN_CHARS,
 				}},
-				PN_CHARS,
-			}},
+			},
 		},
 	}
 	UnicodeCharacter = op.Or{
@@ -138,11 +140,8 @@ var (
 		op.RuneRange{Min: 0xFDF0, Max: 0xFFFD},
 		op.RuneRange{Min: 0x10000, Max: 0xEFFFF},
 	}
-	PN_CHARS_U = op.Or{
-		'_', ':',
-		PN_CHARS_BASE,
-	}
-	PN_CHARS = op.Or{
+	PN_CHARS_U = op.Or{'_', PN_CHARS_BASE}
+	PN_CHARS   = op.Or{
 		'-',
 		op.RuneRange{Min: '0', Max: '9'},
 		PN_CHARS_U,

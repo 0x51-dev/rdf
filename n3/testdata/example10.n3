@@ -1,5 +1,0 @@
-@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
-@prefix : <http://example.org/> .
-
-:spiderman
-  :birthDate "2001-08-10"^^xsd:date .

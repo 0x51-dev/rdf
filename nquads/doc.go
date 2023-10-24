@@ -9,104 +9,15 @@ import (
 	"strings"
 )
 
-var validation = true
-
-// DisableValidation disables validation of IRIs.
-func DisableValidation() {
-	validation = false
-}
-
-func parseBlankNodeLabel(n *parser.Node) (*nt.BlankNode, error) {
-	if n.Name != "BlankNodeLabel" {
-		return nil, fmt.Errorf("blank-node: unknown %s", n.Name)
-	}
-	bn := nt.BlankNode(n.Value())
-	return &bn, nil
-}
-
-func parseGraphLabel(n *parser.Node) (nt.Subject, error) {
+func ParseGraphLabel(n *parser.Node) (nt.Subject, error) {
 	if n.Name != "GraphLabel" {
 		return nil, fmt.Errorf("subject: unknown: %s", n.Name)
 	}
 	switch n = n.Children()[0]; n.Name {
 	case "IRIReference":
-		return parseIRIReference(n)
+		return nt.ParseIRIReference(n)
 	case "BlankNodeLabel":
-		return parseBlankNodeLabel(n)
-	default:
-		return nil, fmt.Errorf("subject: unknown: %s", n.Name)
-	}
-}
-
-func parseIRIReference(n *parser.Node) (*nt.IRIReference, error) {
-	if n.Name != "IRIReference" {
-		return nil, fmt.Errorf("iri-reference: unknown %s", n.Name)
-	}
-
-	ref := nt.IRIReference(n.Value())
-	// IRIs in the RDF abstract syntax must be absolute, and may contain a fragment identifier.
-	if validation && !ref.IsValid() {
-		return nil, fmt.Errorf("iri-reference: invalid: %s", ref)
-	}
-	return &ref, nil
-}
-
-func parseLiteral(n *parser.Node) (*nt.Literal, error) {
-	if n.Name != "Literal" {
-		return nil, fmt.Errorf("literal: unknown %s", n.Name)
-	}
-	var literal nt.Literal
-	for _, n := range n.Children() {
-		switch n.Name {
-		case "StringLiteral":
-			literal.Value = n.Value()
-		case "IRIReference":
-			ref, err := parseIRIReference(n)
-			if err != nil {
-				return nil, err
-			}
-			literal.Reference = ref
-		case "LanguageTag":
-			literal.Language = n.Value()
-		default:
-			return nil, fmt.Errorf("literal: unknown child: %s", n.Name)
-		}
-	}
-	return &literal, nil
-}
-
-func parseObject(n *parser.Node) (nt.Object, error) {
-	if n.Name != "Object" {
-		return nil, fmt.Errorf("object: unknown: %s", n.Name)
-	}
-	switch n = n.Children()[0]; n.Name {
-	case "IRIReference":
-		return parseIRIReference(n)
-	case "BlankNodeLabel":
-		return parseBlankNodeLabel(n)
-	case "Literal":
-		return parseLiteral(n)
-	default:
-		return nil, fmt.Errorf("object: unknown: %s", n.Name)
-	}
-}
-
-func parsePredicate(n *parser.Node) (*nt.IRIReference, error) {
-	if n.Name != "Predicate" {
-		return nil, fmt.Errorf("predicate: unknown %s", n.Name)
-	}
-	return parseIRIReference(n.Children()[0])
-}
-
-func parseSubject(n *parser.Node) (nt.Subject, error) {
-	if n.Name != "Subject" {
-		return nil, fmt.Errorf("subject: unknown: %s", n.Name)
-	}
-	switch n = n.Children()[0]; n.Name {
-	case "IRIReference":
-		return parseIRIReference(n)
-	case "BlankNodeLabel":
-		return parseBlankNodeLabel(n)
+		return nt.ParseBlankNodeLabel(n)
 	default:
 		return nil, fmt.Errorf("subject: unknown: %s", n.Name)
 	}
@@ -138,13 +49,38 @@ func parseDocument(n *parser.Node) (Document, error) {
 	}
 	var quads []Quad
 	for _, n := range n.Children() {
-		quad, err := parseQuad(n)
+		quad, err := ParseQuad(n)
 		if err != nil {
 			return nil, err
 		}
 		quads = append(quads, *quad)
 	}
 	return quads, nil
+}
+
+func (d Document) Equal(other Document) bool {
+	if len(d) != len(other) {
+		return false
+	}
+	g0, g1 := d.Graphs(), other.Graphs()
+	for g, q0 := range g0 {
+		q1, ok := g1[g]
+		if !ok {
+			return false
+		}
+		if !q0.Equal(q1) {
+			return false
+		}
+	}
+	return true
+}
+
+func (d Document) Graphs() map[nt.Subject]nt.Document {
+	g := make(map[nt.Subject]nt.Document)
+	for _, q := range d {
+		g[q.GraphLabel] = append(g[q.GraphLabel], q.Triple)
+	}
+	return g
 }
 
 func (d Document) String() string {
@@ -156,13 +92,18 @@ func (d Document) String() string {
 }
 
 type Quad struct {
-	Subject    nt.Subject
-	Predicate  nt.IRIReference
-	Object     nt.Object
+	nt.Triple
 	GraphLabel nt.Subject
 }
 
-func parseQuad(n *parser.Node) (*Quad, error) {
+func NewQuadFromTriple(t nt.Triple, graphLabel nt.Subject) Quad {
+	return Quad{
+		Triple:     t,
+		GraphLabel: graphLabel,
+	}
+}
+
+func ParseQuad(n *parser.Node) (*Quad, error) {
 	if n.Name != "Statement" {
 		return nil, fmt.Errorf("quad: unknown %s", n.Name)
 	}
@@ -170,29 +111,31 @@ func parseQuad(n *parser.Node) (*Quad, error) {
 		return nil, fmt.Errorf("quad: expected 3 or 4 children")
 	}
 	children := n.Children()
-	s, err := parseSubject(children[0])
+	s, err := nt.ParseSubject(children[0])
 	if err != nil {
 		return nil, err
 	}
-	p, err := parsePredicate(children[1])
+	p, err := nt.ParsePredicate(children[1])
 	if err != nil {
 		return nil, err
 	}
-	o, err := parseObject(children[2])
+	o, err := nt.ParseObject(children[2])
 	if err != nil {
 		return nil, err
 	}
 	var g nt.Subject
 	if len(children) == 4 {
-		g, err = parseGraphLabel(children[3])
+		g, err = ParseGraphLabel(children[3])
 		if err != nil {
 			return nil, err
 		}
 	}
 	return &Quad{
-		Subject:    s,
-		Predicate:  *p,
-		Object:     o,
+		Triple: nt.Triple{
+			Subject:   s,
+			Predicate: *p,
+			Object:    o,
+		},
 		GraphLabel: g,
 	}, nil
 }

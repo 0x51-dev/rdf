@@ -1,6 +1,0 @@
-@prefix ex: <http://example.org/> .
-ex:john ex:address _:a .
-_:a ex:street "Evergreen Terrace" .
-_:a ex:number 742 .
-_:a ex:town _:t .
-_:t ex:name "Springfield" .
