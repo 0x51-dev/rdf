@@ -34,7 +34,7 @@ func Example_example1() {
 	// Output:
 	// @prefix ex: <http://www.example.org/vocabulary#> .
 	// @prefix : <http://www.example.org/exampleDocument#> .
-	// :G1 { :Monica a ex:Person ; ex:name "Monica Murphy" ; ex:homepage <http://www.monicamurphy.org> ; ex:email <mailto:monica@monicamurphy.org> ; ex:hasSkill ex:Management, ex:Programming . }
+	// :G1 { :Monica a ex:Person ; ex:email <mailto:monica@monicamurphy.org> ; ex:hasSkill ex:Management, ex:Programming ; ex:homepage <http://www.monicamurphy.org> ; ex:name "Monica Murphy" . }
 }
 
 func TestExamples(t *testing.T) {

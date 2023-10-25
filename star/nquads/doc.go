@@ -13,11 +13,6 @@ import (
 
 type Document []Quad
 
-type Quad struct {
-	nts.Triple
-	GraphLabel nt.Subject
-}
-
 func ParseDocument(doc string) (Document, error) {
 	if len(doc) == 0 {
 		return nil, nil
@@ -49,6 +44,11 @@ func parseDocument(n *parser.Node) (Document, error) {
 		quads = append(quads, *quad)
 	}
 	return quads, nil
+}
+
+type Quad struct {
+	nts.Triple
+	GraphLabel nt.Subject
 }
 
 func ParseQuad(n *parser.Node) (*Quad, error) {

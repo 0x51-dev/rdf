@@ -9,6 +9,8 @@ import (
 	nt "github.com/0x51-dev/rdf/ntriples"
 	ttl "github.com/0x51-dev/rdf/turtle"
 	"os"
+	"slices"
+	"sort"
 	"testing"
 )
 
@@ -31,12 +33,42 @@ func Example_example1() {
 	fmt.Println(doc)
 	// Output:
 	// @base <http://example.org/> .
+	// @prefix foaf: <http://xmlns.com/foaf/0.1/> .
 	// @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 	// @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-	// @prefix foaf: <http://xmlns.com/foaf/0.1/> .
 	// @prefix rel: <http://www.perceive.net/schemas/relationship/> .
-	// <#green-goblin> rel:enemyOf <#spiderman> ; a foaf:Person ; foaf:name "Green Goblin" .
-	// <#spiderman> rel:enemyOf <#green-goblin> ; a foaf:Person ; foaf:name "Spiderman", "Человек-паук"@ru .
+	// <#green-goblin> a foaf:Person ; foaf:name "Green Goblin" ; rel:enemyOf <#spiderman> .
+	// <#spiderman> a foaf:Person ; foaf:name "Spiderman", "Человек-паук"@ru ; rel:enemyOf <#green-goblin> .
+}
+
+func TestDocument_sort(t *testing.T) {
+	base := ttl.Base("base")
+	prefix := ttl.Prefix{
+		Name: "ex",
+		IRI:  "http://www.example.org/vocabulary#",
+	}
+	iri := ttl.IRI{
+		Prefixed: true,
+		Value:    "ex:ttl",
+	}
+	triple := ttl.Triple{
+		Subject: &iri,
+		PredicateObjectList: ttl.PredicateObjectList{
+			{Verb: &iri, ObjectList: []ttl.Object{&iri}},
+		},
+	}
+	doc := ttl.Document{
+		&base, &triple,
+		&prefix, &triple,
+		&base, &prefix, &triple, &triple,
+	}
+
+	doc2 := make(ttl.Document, len(doc))
+	copy(doc2, doc)
+	sort.Sort(doc2)
+	if !slices.Equal(doc, doc2) {
+		t.Error()
+	}
 }
 
 func TestExamples(t *testing.T) {
@@ -75,8 +107,8 @@ func TestExamples(t *testing.T) {
 				if err != nil {
 					t.Fatal(doc.String())
 				}
-				if len(doc2) != n {
-					t.Fatal(n, len(doc2))
+				if !doc.Equal(doc2) {
+					t.Error(doc, doc2)
 				}
 			}
 		})
@@ -99,6 +131,7 @@ func TestSuite(t *testing.T) {
 			t.Fatal(err)
 		}
 		doc, err := ttl.ParseDocument(string(raw))
+		cwd := fmt.Sprintf("http://www.w3.org/2013/TurtleTests/%s.ttl", e.Name)
 		switch e.Type {
 		case "rdft:TestTurtlePositiveSyntax":
 			t.Run(e.Name, func(t *testing.T) {
@@ -107,7 +140,7 @@ func TestSuite(t *testing.T) {
 					t.Fatal(err)
 				}
 
-				if ntr, err := ttl.EvaluateDocument(doc); err != nil {
+				if ntr, err := ttl.EvaluateDocument(doc, cwd); err != nil {
 					report.AddTest(e.Name, testsuite.Failed)
 					t.Fatal(err)
 				} else {
@@ -123,9 +156,9 @@ func TestSuite(t *testing.T) {
 					report.AddTest(e.Name, testsuite.Failed)
 					t.Fatal(err)
 				}
-				if len(doc) != len(doc2) {
+				if !doc.Equal(doc2) {
 					report.AddTest(e.Name, testsuite.Failed)
-					t.Fatal(len(doc), len(doc2))
+					t.Fatal(doc, doc2)
 				}
 
 				report.AddTest(e.Name, testsuite.Passed)
@@ -152,9 +185,9 @@ func TestSuite(t *testing.T) {
 					report.AddTest(e.Name, testsuite.Failed)
 					t.Fatal(err)
 				}
-				if len(doc) != len(doc2) {
+				if !doc.Equal(doc2) {
 					report.AddTest(e.Name, testsuite.Failed)
-					t.Fatal(len(doc), len(doc2))
+					t.Fatal(doc, doc2)
 				}
 
 				raw, err := suite.ReadFile(fmt.Sprintf("testdata/suite/%s", e.Result))
@@ -165,14 +198,18 @@ func TestSuite(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				ntr2, err := ttl.EvaluateDocument(doc)
+				ntr = ntr.NormalizeBlankNodes()
+				sort.Sort(ntr)
+				ntr2, err := ttl.EvaluateDocument(doc, cwd)
 				if err != nil {
 					report.AddTest(e.Name, testsuite.Failed)
 					t.Fatal(err)
 				}
-				if len(ntr) != len(ntr2) {
+				ntr2 = ntr2.NormalizeBlankNodes()
+				sort.Sort(ntr2)
+				if !ntr.Equal(ntr2) {
 					report.AddTest(e.Name, testsuite.Failed)
-					t.Fatal(len(ntr), len(ntr2))
+					t.Fatal(ntr, "\n", ntr2)
 				}
 				if _, err := nt.ParseDocument(ntr2.String()); err != nil {
 					report.AddTest(e.Name, testsuite.Failed)
@@ -194,12 +231,12 @@ func TestSuite(t *testing.T) {
 					report.AddTest(e.Name, testsuite.Failed)
 					t.Fatal(err)
 				}
-				if len(doc) != len(doc2) {
+				if !doc.Equal(doc2) {
 					report.AddTest(e.Name, testsuite.Failed)
-					t.Fatal(len(doc), len(doc2))
+					t.Fatal(doc, doc2)
 				}
 
-				if _, err := ttl.EvaluateDocument(doc); err == nil {
+				if _, err := ttl.EvaluateDocument(doc, cwd); err == nil {
 					report.AddTest(e.Name, testsuite.Failed)
 					t.Fatal(doc)
 				}

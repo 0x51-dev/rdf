@@ -6,6 +6,8 @@ import (
 	"github.com/0x51-dev/rdf/ntriples/grammar"
 	"github.com/0x51-dev/upeg/parser"
 	"github.com/0x51-dev/upeg/parser/op"
+	"math/big"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -55,7 +57,6 @@ func (ctx *Context) EvaluateCollection(c Collection) (nt.Object, []nt.Triple, er
 		o := nt.IRIReference("http://www.w3.org/1999/02/22-rdf-syntax-ns#nil")
 		return &o, triples, nil
 	}
-
 	var first, el nt.BlankNode
 	for i, o := range objects {
 		e := ctx.el()
@@ -97,6 +98,7 @@ func (ctx *Context) EvaluateIRI(iri *IRI) (*nt.IRIReference, error) {
 				v = v_
 			}
 		}
+
 		p, err := parser.New([]rune(`<` + v + `>`))
 		if err != nil {
 			return nil, err
@@ -105,7 +107,17 @@ func (ctx *Context) EvaluateIRI(iri *IRI) (*nt.IRIReference, error) {
 			return nil, err
 		}
 
-		ref := nt.IRIReference(strings.ReplaceAll(v, "\\", ""))
+		r := strings.ReplaceAll(v, "\\", "")
+		if !strings.Contains(r, ":") {
+			base := ctx.Base
+			if !strings.HasSuffix(base, "/") && !strings.HasSuffix(base, "#") {
+				i := strings.LastIndex(base, "/")
+				base = base[:i+1]
+			}
+			ref := nt.IRIReference(fmt.Sprintf("%s%s", base, r))
+			return &ref, nil
+		}
+		ref := nt.IRIReference(r)
 		return &ref, nil
 	}
 
@@ -117,7 +129,27 @@ func (ctx *Context) EvaluateIRI(iri *IRI) (*nt.IRIReference, error) {
 	if !ok {
 		return nil, fmt.Errorf("prefix %q not defined", p[0])
 	}
-	ref := nt.IRIReference(prefix + strings.ReplaceAll(p[1], "\\", ""))
+
+	var suffix string
+	for i, runes, escaped := 0, []rune(p[1]), false; i < len(runes); i++ {
+		c := runes[i]
+		if c == '\\' {
+			escaped = true
+			continue
+		}
+		if c <= 0x1F || c == 0x2E && !escaped {
+			suffix += fmt.Sprintf("\\u%04X", c)
+		} else if 0x7F <= c && c <= 0xFFFF {
+			suffix += fmt.Sprintf("\\u%04X", c)
+		} else if 0xFFFF < c {
+			suffix += fmt.Sprintf("\\U%08X", c)
+		} else {
+			suffix += string(c)
+		}
+		escaped = false
+	}
+
+	ref := nt.IRIReference(fmt.Sprintf("%s%s", prefix, suffix))
 	return &ref, nil
 }
 
@@ -229,10 +261,77 @@ func (ctx *Context) EvaluateStringLiteral(o *StringLiteral) (*nt.Literal, error)
 		v = strings.ReplaceAll(v, "\\\"", "\"")
 	}
 	v = strings.ReplaceAll(v, "\"", "\\\"")
+	v = strings.ReplaceAll(v, "\t", "\\t")
+	v = strings.ReplaceAll(v, "\\b", "\\u0008")
+	v = strings.ReplaceAll(v, "\\f", "\\u000C")
+
+	var esc string
+	var unicodeCount int
+	var unicodeBuffer string
+	for i, runes, escaped := 0, []rune(v), false; i < len(runes); i++ {
+		c := runes[i]
+		if !escaped && c == '\\' {
+			escaped = true
+			continue
+		}
+		if escaped {
+			switch c {
+			case 'u':
+				unicodeCount = 4
+			case 'U':
+				unicodeCount = 8
+			default:
+				esc += "\\" + string(c)
+
+			}
+			escaped = false
+			continue
+		}
+		if unicodeCount > 0 {
+			unicodeBuffer += string(c)
+			unicodeCount--
+			if unicodeCount == 0 {
+				n := new(big.Int)
+				n.SetString(unicodeBuffer, 16)
+				if big.NewInt(0x1F).Cmp(n) < 0 && n.Cmp(big.NewInt(0x7F)) < 0 {
+					esc += string(rune(n.Int64()))
+				} else if n.Cmp(big.NewInt(0xFFFF)) < 0 {
+					esc += fmt.Sprintf("\\u%04X", n)
+				} else {
+					esc += fmt.Sprintf("\\U%08X", n)
+				}
+				unicodeBuffer = ""
+			}
+			continue
+		}
+
+		if c <= 0x1F {
+			esc += fmt.Sprintf("\\u%04X", c)
+		} else if 0x7F <= c && c <= 0xFFFF {
+			esc += fmt.Sprintf("\\u%04X", c)
+		} else if 0xFFFF < c {
+			esc += fmt.Sprintf("\\U%08X", c)
+		} else {
+			esc += string(c)
+		}
+		escaped = false
+	}
+	v = esc
+
 	if o.LanguageTag != "" {
 		return &nt.Literal{
 			Value:    v,
 			Language: o.LanguageTag,
+		}, nil
+	}
+	if o.DatatypeIRI != nil {
+		i, err := ctx.EvaluateIRI(o.DatatypeIRI)
+		if err != nil {
+			return nil, err
+		}
+		return &nt.Literal{
+			Value:     v,
+			Reference: i,
 		}, nil
 	}
 	return &nt.Literal{
@@ -352,23 +451,32 @@ func (ctx *Context) EvaluateTriple(t *Triple) ([]nt.Triple, error) {
 	return triples, nil
 }
 
-func (ctx *Context) evaluateDocument(d Document) (nt.Document, error) {
-	var triples []nt.Triple
+func (ctx *Context) evaluateDocument(d Document, cwd string) (nt.Document, error) {
+	ctx.Base = cwd
+	var document nt.Document
 	for _, t := range d {
 		switch t := t.(type) {
 		case *Base:
-			ctx.Base = string(*t)
+			if s := string(*t); !strings.Contains(s, ":") {
+				ctx.Base = fmt.Sprintf("%s%s", ctx.Base, s)
+			} else {
+				ctx.Base = s
+			}
 		case *Prefix:
+			if !strings.Contains(t.IRI, ":") {
+				t.IRI = fmt.Sprintf("%s%s", ctx.Base, t.IRI)
+			}
 			ctx.Prefixes[t.Name] = t.IRI
 		case *Triple:
 			ts, err := ctx.EvaluateTriple(t)
 			if err != nil {
 				return nil, err
 			}
-			triples = append(triples, ts...)
+			document = append(document, ts...)
 		default:
 			panic(fmt.Errorf("unknown document type %T", t))
 		}
 	}
-	return triples, nil
+	sort.Sort(document)
+	return document, nil
 }

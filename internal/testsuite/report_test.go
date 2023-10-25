@@ -15,7 +15,7 @@ func ExampleNewReport() {
 		Result: testsuite.TestResult{
 			Date: ttl.StringLiteral{
 				Value:       "2023-09-09+00:00",
-				DatatypeIRI: "xsd:date",
+				DatatypeIRI: &ttl.IRI{Prefixed: true, Value: "xsd:date"},
 			},
 			Outcome: testsuite.Passed,
 		},

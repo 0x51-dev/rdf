@@ -6,11 +6,12 @@ import (
 	"github.com/0x51-dev/rdf/turtle/grammar"
 	"github.com/0x51-dev/upeg/parser"
 	"github.com/0x51-dev/upeg/parser/op"
+	"sort"
 	"strings"
 )
 
-func EvaluateDocument(doc Document) (nt.Document, error) {
-	return NewContext().evaluateDocument(doc)
+func EvaluateDocument(doc Document, cwd string) (nt.Document, error) {
+	return NewContext().evaluateDocument(doc, cwd)
 }
 
 func ValidateDocument(doc Document) bool {
@@ -18,6 +19,16 @@ func ValidateDocument(doc Document) bool {
 }
 
 type A struct{}
+
+func (a A) Equal(v any) bool {
+	if _, ok := v.(A); ok {
+		return true
+	}
+	if v, ok := v.(*A); ok && v != nil {
+		return true
+	}
+	return false
+}
 
 func (a A) String() string {
 	return "a"
@@ -33,6 +44,16 @@ func ParseBase(n *parser.Node) (*Base, error) {
 	}
 	base := Base(n.Children()[0].Value())
 	return &base, nil
+}
+
+func (b Base) Equal(v any) bool {
+	if v, ok := v.(Base); ok {
+		return b == v
+	}
+	if v, ok := v.(*Base); ok && v != nil {
+		return b == *v
+	}
+	return false
 }
 
 func (b Base) String() string {
@@ -61,11 +82,25 @@ func ParseBlankNode(n *parser.Node) (*BlankNode, error) {
 	}
 }
 
+func (b BlankNode) Equal(v any) bool {
+	if v, ok := v.(BlankNode); ok {
+		return b.equal(v)
+	}
+	if v, ok := v.(*BlankNode); ok && v != nil {
+		return b.equal(*v)
+	}
+	return false
+}
+
 func (b BlankNode) String() string {
 	if b == "[]" {
 		return string(b)
 	}
 	return fmt.Sprintf("_:%s", string(b))
+}
+
+func (b BlankNode) equal(other BlankNode) bool {
+	return b == other
 }
 
 func (b BlankNode) object() {}
@@ -85,7 +120,18 @@ func ParseBlankNodePropertyList(n *parser.Node) (BlankNodePropertyList, error) {
 	if err != nil {
 		return nil, err
 	}
+	sort.Sort(pol)
 	return BlankNodePropertyList(pol), nil
+}
+
+func (b BlankNodePropertyList) Equal(v any) bool {
+	if v, ok := v.(BlankNodePropertyList); ok {
+		return b.equal(v)
+	}
+	if v, ok := v.(*BlankNodePropertyList); ok && v != nil {
+		return b.equal(*v)
+	}
+	return false
 }
 
 func (b BlankNodePropertyList) String() string {
@@ -101,9 +147,23 @@ func (b BlankNodePropertyList) String() string {
 	return s
 }
 
+func (b BlankNodePropertyList) equal(other BlankNodePropertyList) bool {
+	return PredicateObjectList(b).equal(PredicateObjectList(other))
+}
+
 func (b BlankNodePropertyList) object() {}
 
 type BooleanLiteral bool
+
+func (bl BooleanLiteral) Equal(v any) bool {
+	if v, ok := v.(BooleanLiteral); ok {
+		return bl == v
+	}
+	if v, ok := v.(*BooleanLiteral); ok && v != nil {
+		return bl == *v
+	}
+	return false
+}
 
 func (bl BooleanLiteral) String() string {
 	return fmt.Sprintf("%t", bl)
@@ -133,6 +193,16 @@ func ParseCollection(n *parser.Node) (Collection, error) {
 	return collection, nil
 }
 
+func (c Collection) Equal(v any) bool {
+	if v, ok := v.(Collection); ok {
+		return c.equal(v, false)
+	}
+	if v, ok := v.(*Collection); ok && v != nil {
+		return c.equal(*v, false)
+	}
+	return false
+}
+
 func (c Collection) String() string {
 	var s string
 	s += "("
@@ -146,12 +216,60 @@ func (c Collection) String() string {
 	return s
 }
 
+func (c Collection) equal(other Collection, checkBlankNode bool) bool {
+	if len(c) != len(other) {
+		return false
+	}
+	for i, o := range c {
+		switch o.(type) {
+		case BlankNode, *BlankNode:
+			if !checkBlankNode {
+				_, isBn := other[i].(BlankNode)
+				_, isBnPtr := other[i].(*BlankNode)
+				if !isBn && !isBnPtr {
+					return false
+				}
+			} else {
+				if !o.Equal(other[i]) {
+					return false
+				}
+			}
+		default:
+			if !o.Equal(other[i]) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (c Collection) normalizeBlankNodes(f func(b fmt.Stringer) *BlankNode) (n Collection) {
+	for _, v := range c {
+		switch o := v.(type) {
+		case BlankNode, *BlankNode:
+			n = append(n, f(o))
+		case BlankNodePropertyList:
+			n = append(n, BlankNodePropertyList(
+				PredicateObjectList(o).normalizeBlankNodes(f),
+			))
+		case Collection:
+			n = append(n, o.normalizeBlankNodes(f))
+		default:
+			n = append(n, o)
+		}
+	}
+	return
+}
+
 func (c Collection) object() {}
 
 func (c Collection) subject() {}
 
 type Directive interface {
 	directive()
+
+	Equal(v any) bool
+	fmt.Stringer
 }
 
 func ParseDirective(n *parser.Node) (Directive, error) {
@@ -192,7 +310,7 @@ func parseDocument(n *parser.Node) (Document, error) {
 	if n.Name != "Document" {
 		return nil, fmt.Errorf("document: unknown %s", n.Name)
 	}
-	var doc Document
+	var document Document
 	for _, n := range n.Children() {
 		switch n.Name {
 		case "Directive":
@@ -202,9 +320,9 @@ func parseDocument(n *parser.Node) (Document, error) {
 			}
 			switch d := d.(type) {
 			case *Base:
-				doc = append(doc, d)
+				document = append(document, d)
 			case *Prefix:
-				doc = append(doc, d)
+				document = append(document, d)
 			default:
 				return nil, fmt.Errorf("document: unknown directive: %T", d)
 			}
@@ -213,12 +331,59 @@ func parseDocument(n *parser.Node) (Document, error) {
 			if err != nil {
 				return nil, err
 			}
-			doc = append(doc, t)
+			document = append(document, t)
 		default:
 			return nil, fmt.Errorf("document: unknown: %s", n.Name)
 		}
 	}
-	return doc, nil
+	sort.Sort(document)
+	return document, nil
+}
+
+func (d Document) Equal(other Document) bool {
+	if len(d) != len(other) {
+		return false
+	}
+	d, o := d.normalizeBlankNodes(), other.normalizeBlankNodes()
+	for i, s0 := range d {
+		s1 := o[i]
+		if !s0.Equal(s1) {
+			return false
+		}
+	}
+	return true
+}
+
+func (d Document) Len() int {
+	return len(d)
+}
+
+func (d Document) Less(i, j int) bool {
+	switch d0 := d[i].(type) {
+	case Triple, *Triple:
+		switch t1 := d[j].(type) {
+		case Triple, *Triple:
+			return d0.String() < t1.String()
+		default:
+			return false
+		}
+	case Prefix:
+		switch p1 := d[j].(type) {
+		case Prefix, *Prefix:
+			return d0.Less(p1)
+		default:
+			return false
+		}
+	case *Prefix:
+		switch p1 := d[j].(type) {
+		case Prefix, *Prefix:
+			return d0.Less(p1)
+		default:
+			return false
+		}
+	default:
+		return false
+	}
 }
 
 func (d Document) String() string {
@@ -251,6 +416,60 @@ func (d Document) SubjectMap() (map[string]*Triple, error) {
 	return m, nil
 }
 
+func (d Document) Swap(i, j int) {
+	d[i], d[j] = d[j], d[i]
+}
+
+func (d Document) normalizeBlankNodes() (n Document) {
+	var i int
+	mapping := make(map[string]string)
+	f := func(b fmt.Stringer) *BlankNode {
+		if bn, ok := mapping[b.String()]; ok {
+			return (*BlankNode)(&bn)
+		}
+		bn := fmt.Sprintf("%d", i)
+		mapping[b.String()] = bn
+		i++
+		return (*BlankNode)(&bn)
+	}
+	for _, s := range d {
+		switch t := s.(type) {
+		case *Triple:
+			if t.Subject != nil {
+				subject := t.Subject
+				switch s := t.Subject.(type) {
+				case BlankNode, *BlankNode:
+					subject = f(s)
+				case Collection:
+					subject = s.normalizeBlankNodes(f)
+				case *Collection:
+					if s != nil {
+						subject = s.normalizeBlankNodes(f)
+					}
+				}
+				n = append(n, &Triple{
+					Subject:             subject,
+					PredicateObjectList: t.PredicateObjectList.normalizeBlankNodes(f),
+				})
+			} else {
+				var predicateObjectList PredicateObjectList
+				if t.PredicateObjectList != nil {
+					predicateObjectList = t.PredicateObjectList.normalizeBlankNodes(f)
+				}
+				n = append(n, &Triple{
+					BlankNodePropertyList: BlankNodePropertyList(
+						PredicateObjectList(t.BlankNodePropertyList).normalizeBlankNodes(f),
+					),
+					PredicateObjectList: predicateObjectList,
+				})
+			}
+		default:
+			n = append(n, s)
+		}
+	}
+	return
+}
+
 // IRI can be written as a relative/absolute IRI or prefixed name.
 type IRI struct {
 	Prefixed bool
@@ -276,11 +495,25 @@ func ParseIRI(n *parser.Node) (*IRI, error) {
 	}, nil
 }
 
+func (i IRI) Equal(v any) bool {
+	if v, ok := v.(IRI); ok {
+		return i.equal(v)
+	}
+	if v, ok := v.(*IRI); ok && v != nil {
+		return i.equal(*v)
+	}
+	return false
+}
+
 func (i IRI) String() string {
 	if i.Prefixed {
 		return i.Value
 	}
 	return fmt.Sprintf("<%s>", i.Value)
+}
+
+func (i IRI) equal(other IRI) bool {
+	return i.Prefixed == other.Prefixed && i.Value == other.Value
 }
 
 func (i IRI) object() {}
@@ -295,6 +528,7 @@ type Literal interface {
 
 	Object
 
+	Equal(v any) bool
 	fmt.Stringer
 }
 
@@ -333,6 +567,7 @@ func ParseDouble(n *parser.Node) (Literal, error) {
 		Value: n.Value(),
 	}, nil
 }
+
 func ParseInteger(n *parser.Node) (Literal, error) {
 	if n.Name != "Integer" {
 		return nil, fmt.Errorf("integer: unknown %s", n.Name)
@@ -388,7 +623,13 @@ func ParseRDFLiteral(n *parser.Node) (Literal, error) {
 		case "LanguageTag":
 			v.LanguageTag = n.Value()
 		case "IRI":
-			v.DatatypeIRI = n.Value()
+			iri, err := ParseIRI(n)
+			if err != nil {
+				return nil, err
+			}
+			v.DatatypeIRI = iri
+		default:
+			return nil, fmt.Errorf("rdf literal: unknown: %s", n.Name)
 		}
 	}
 	return v, nil
@@ -399,8 +640,21 @@ type NumericLiteral struct {
 	Value string
 }
 
+func (nl NumericLiteral) Equal(v any) bool {
+	if v, ok := v.(NumericLiteral); ok {
+		return nl.equal(v)
+	}
+	if v, ok := v.(*NumericLiteral); ok && v != nil {
+		return nl.equal(*v)
+	}
+	return false
+}
 func (nl NumericLiteral) String() string {
 	return nl.Value
+}
+
+func (nl NumericLiteral) equal(other NumericLiteral) bool {
+	return nl.Type == other.Type && nl.Value == other.Value
 }
 
 func (nl NumericLiteral) literal() {}
@@ -418,6 +672,7 @@ const (
 type Object interface {
 	object()
 
+	Equal(v any) bool
 	fmt.Stringer
 }
 
@@ -443,31 +698,38 @@ func ParseObject(n *parser.Node) (Object, error) {
 
 // ObjectList matches a series of objects separated by ',' following a predicate. This expresses a series of RDF Triples
 // with the corresponding subject and predicate and each object allocated to one triple.
-type ObjectList []Object
+type ObjectList Collection
 
 func ParseObjectList(n *parser.Node) (ObjectList, error) {
 	if n.Name != "ObjectList" {
 		return nil, fmt.Errorf("object list: unknown %s", n.Name)
 	}
-	var ol ObjectList
-	for _, n := range n.Children() {
-		if n.Name == "Object" {
-			object, err := ParseObject(n)
-			if err != nil {
-				return nil, err
-			}
-			ol = append(ol, object)
-		} else {
-			for _, n := range n.Children() {
-				object, err := ParseObject(n)
-				if err != nil {
-					return nil, err
-				}
-				ol = append(ol, object)
-			}
-		}
+	n.Name = "Collection"
+	c, err := ParseCollection(n)
+	if err != nil {
+		return nil, err
 	}
+	ol := ObjectList(c)
+	sort.Sort(ol)
 	return ol, nil
+}
+
+func (ol ObjectList) Equal(v any) bool {
+	if v, ok := v.(ObjectList); ok {
+		return ol.equal(v)
+	}
+	if v, ok := v.(*ObjectList); ok && v != nil {
+		return ol.equal(*v)
+	}
+	return false
+}
+
+func (ol ObjectList) Len() int {
+	return len(ol)
+}
+
+func (ol ObjectList) Less(i, j int) bool {
+	return ol[i].String() < ol[j].String()
 }
 
 func (ol ObjectList) String() string {
@@ -479,6 +741,14 @@ func (ol ObjectList) String() string {
 		s += o.String()
 	}
 	return s
+}
+
+func (ol ObjectList) Swap(i, j int) {
+	ol[i], ol[j] = ol[j], ol[i]
+}
+
+func (ol ObjectList) equal(other ObjectList) bool {
+	return Collection(ol).Equal(Collection(other))
 }
 
 type PredicateObject struct {
@@ -504,6 +774,16 @@ func ParsePredicateObject(n *parser.Node) (*PredicateObject, error) {
 	}, nil
 }
 
+func (po PredicateObject) Equal(v any) bool {
+	if v, ok := v.(PredicateObject); ok {
+		return po.equal(v)
+	}
+	if v, ok := v.(*PredicateObject); ok && v != nil {
+		return po.equal(*v)
+	}
+	return false
+}
+
 func (po PredicateObject) String() string {
 	var s string
 	s += po.Verb.String()
@@ -511,6 +791,10 @@ func (po PredicateObject) String() string {
 		s += fmt.Sprintf(" %s", po.ObjectList)
 	}
 	return s
+}
+
+func (po PredicateObject) equal(other PredicateObject) bool {
+	return po.Verb.Equal(other.Verb) && po.ObjectList.Equal(other.ObjectList)
 }
 
 // PredicateObjectList matches a series of predicates and objects, separated by ';', following a subject. This expresses
@@ -540,7 +824,26 @@ func ParsePredicateObjectList(n *parser.Node) (PredicateObjectList, error) {
 			}
 		}
 	}
+	sort.Sort(pol)
 	return pol, nil
+}
+
+func (pol PredicateObjectList) Equal(v any) bool {
+	if v, ok := v.(PredicateObjectList); ok {
+		return pol.equal(v)
+	}
+	if v, ok := v.(*PredicateObjectList); ok && v != nil {
+		return pol.equal(*v)
+	}
+	return false
+}
+
+func (pol PredicateObjectList) Len() int {
+	return len(pol)
+}
+
+func (pol PredicateObjectList) Less(i, j int) bool {
+	return pol[i].String() < pol[j].String()
 }
 
 func (pol PredicateObjectList) String() string {
@@ -552,6 +855,32 @@ func (pol PredicateObjectList) String() string {
 		s += po.String()
 	}
 	return s
+}
+
+func (pol PredicateObjectList) Swap(i, j int) {
+	pol[i], pol[j] = pol[j], pol[i]
+}
+
+func (pol PredicateObjectList) equal(other PredicateObjectList) bool {
+	if len(pol) != len(other) {
+		return false
+	}
+	for i, po := range pol {
+		if !po.Equal(other[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (pol PredicateObjectList) normalizeBlankNodes(f func(b fmt.Stringer) *BlankNode) (n PredicateObjectList) {
+	for _, v := range pol {
+		n = append(n, PredicateObject{
+			Verb:       v.Verb,
+			ObjectList: ObjectList(Collection(v.ObjectList).normalizeBlankNodes(f)),
+		})
+	}
+	return
 }
 
 type Prefix struct {
@@ -569,17 +898,49 @@ func ParsePrefix(n *parser.Node) (*Prefix, error) {
 	}, nil
 }
 
+func (p Prefix) Equal(v any) bool {
+	if v, ok := v.(Prefix); ok {
+		return p.equal(v)
+	}
+	if v, ok := v.(*Prefix); ok && v != nil {
+		return p.equal(*v)
+	}
+	return false
+}
+
+func (p Prefix) Less(other any) bool {
+	if other, ok := other.(Prefix); ok {
+		return p.less(other)
+	}
+	if other, ok := other.(*Prefix); ok && other != nil {
+		return p.less(*other)
+	}
+	return false
+}
+
 func (p Prefix) String() string {
 	return fmt.Sprintf("@prefix %s <%s> .", p.Name, p.IRI)
 }
 
 func (p Prefix) directive() {}
 
+func (p Prefix) equal(other Prefix) bool {
+	return p.Name == other.Name && p.IRI == other.IRI
+}
+
+func (p Prefix) less(other Prefix) bool {
+	if p.Name == other.Name {
+		return false
+	}
+	return p.String() < other.String()
+}
+
 func (p Prefix) statement() {}
 
 type Statement interface {
 	statement()
 
+	Equal(v any) bool
 	fmt.Stringer
 }
 
@@ -588,7 +949,7 @@ type StringLiteral struct {
 	Multiline   bool
 	SingleQuote bool
 	LanguageTag string
-	DatatypeIRI string
+	DatatypeIRI *IRI
 }
 
 func ParseStringLiteral(n *parser.Node) (*StringLiteral, error) {
@@ -618,6 +979,16 @@ func ParseStringLiteral(n *parser.Node) (*StringLiteral, error) {
 	}
 }
 
+func (sl StringLiteral) Equal(v any) bool {
+	if v, ok := v.(StringLiteral); ok {
+		return sl.equal(v)
+	}
+	if v, ok := v.(*StringLiteral); ok && v != nil {
+		return sl.equal(*v)
+	}
+	return false
+}
+
 func (sl StringLiteral) String() string {
 	var s string
 	if sl.Multiline {
@@ -636,10 +1007,18 @@ func (sl StringLiteral) String() string {
 	if sl.LanguageTag != "" {
 		s += fmt.Sprintf("@%s", sl.LanguageTag)
 	}
-	if sl.DatatypeIRI != "" {
+	if sl.DatatypeIRI != nil {
 		s += fmt.Sprintf("^^%s", sl.DatatypeIRI)
 	}
 	return s
+}
+
+func (sl StringLiteral) equal(other StringLiteral) bool {
+	if sl.DatatypeIRI != nil && !sl.DatatypeIRI.Equal(other.DatatypeIRI) {
+		return false
+	}
+	return sl.Value == other.Value && sl.Multiline == other.Multiline &&
+		sl.SingleQuote == other.SingleQuote && sl.LanguageTag == other.LanguageTag
 }
 
 func (sl StringLiteral) literal() {}
@@ -649,6 +1028,7 @@ func (sl StringLiteral) object() {}
 type Subject interface {
 	subject()
 
+	Equal(v any) bool
 	fmt.Stringer
 }
 
@@ -727,6 +1107,16 @@ func ParseTriples(n *parser.Node) (*Triple, error) {
 	}
 }
 
+func (t Triple) Equal(v any) bool {
+	if v, ok := v.(Triple); ok {
+		return t.equal(v)
+	}
+	if v, ok := v.(*Triple); ok && v != nil {
+		return t.equal(*v)
+	}
+	return false
+}
+
 func (t Triple) PredicateObjectMap() (map[string]ObjectList, error) {
 	m := make(map[string]ObjectList)
 	for _, po := range t.PredicateObjectList {
@@ -751,11 +1141,25 @@ func (t Triple) String() string {
 	return s
 }
 
+func (t Triple) equal(other Triple) bool {
+	if t.Subject != nil {
+		return t.Subject.Equal(other.Subject) && t.PredicateObjectList.Equal(other.PredicateObjectList)
+	}
+	if !t.BlankNodePropertyList.Equal(other.BlankNodePropertyList) {
+		return false
+	}
+	if t.PredicateObjectList != nil {
+		return t.PredicateObjectList.Equal(other.PredicateObjectList)
+	}
+	return true
+}
+
 func (t Triple) statement() {}
 
 type Verb interface {
 	verb()
 
+	Equal(v any) bool
 	fmt.Stringer
 }
 

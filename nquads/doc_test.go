@@ -47,7 +47,7 @@ func TestDocument_Equal(t *testing.T) {
 			nt.Triple{
 				Subject:   a,
 				Predicate: b,
-				Object:    nt.BlankNode("_:b1"),
+				Object:    nt.BlankNode("b1"),
 			}, nil,
 		),
 	}
@@ -59,7 +59,7 @@ func TestDocument_Equal(t *testing.T) {
 			nt.Triple{
 				Subject:   a,
 				Predicate: b,
-				Object:    nt.BlankNode("_:b2"),
+				Object:    nt.BlankNode("b2"),
 			}, nil,
 		),
 	}) {
@@ -70,7 +70,7 @@ func TestDocument_Equal(t *testing.T) {
 			nt.Triple{
 				Subject:   a,
 				Predicate: b,
-				Object:    nt.BlankNode("_:b3"),
+				Object:    nt.BlankNode("b1"),
 			}, nt.IRIReference("https://example.com/g"), // Different graph.
 		),
 	}) {
@@ -96,12 +96,12 @@ func TestExamples(t *testing.T) {
 		}
 
 		{ // fmt.Stringer
-			doc, err := nq.ParseDocument(doc.String())
+			doc2, err := nq.ParseDocument(doc.String())
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(doc) != test.quads {
-				t.Error(len(doc))
+			if !doc.Equal(doc2) {
+				t.Error(doc, doc2)
 			}
 		}
 	}
@@ -135,7 +135,7 @@ func TestSuite(t *testing.T) {
 					report.AddTest(e.Name, testsuite.Failed)
 					t.Fatal(err)
 				}
-				if len(doc) != len(doc2) {
+				if !doc.Equal(doc2) {
 					report.AddTest(e.Name, testsuite.Failed)
 					t.Fatal(len(doc), len(doc2))
 				}

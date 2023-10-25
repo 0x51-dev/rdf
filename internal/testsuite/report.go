@@ -106,7 +106,7 @@ func (p Project) line() ttl.Statement {
 		},
 		{
 			Verb:       &ttl.IRI{Prefixed: true, Value: "doap:created"},
-			ObjectList: []ttl.Object{&ttl.StringLiteral{Value: p.Created.Format("2006-01-02-0700"), DatatypeIRI: "xsd:date"}},
+			ObjectList: []ttl.Object{&ttl.StringLiteral{Value: p.Created.Format("2006-01-02-0700"), DatatypeIRI: &ttl.IRI{Prefixed: true, Value: "xsd:date"}}},
 		},
 		{
 			Verb:       &ttl.IRI{Prefixed: true, Value: "doap:programming-language"},

@@ -48,7 +48,7 @@ func TestDocument_Equal(t *testing.T) {
 		nt.Triple{
 			Subject:   a,
 			Predicate: b,
-			Object:    nt.BlankNode("_:b1"),
+			Object:    nt.BlankNode("b1"),
 		},
 	}
 	if !d.Equal(d) {
@@ -58,11 +58,39 @@ func TestDocument_Equal(t *testing.T) {
 		nt.Triple{
 			Subject:   a,
 			Predicate: b,
-			Object:    nt.BlankNode("_:b2"),
+			Object:    nt.BlankNode("b2"),
 		},
 	}) {
 		t.Error()
 	}
+	t.Run("blank node", func(t *testing.T) {
+		t12 := nt.Triple{
+			Subject:   nt.BlankNode("b1"),
+			Predicate: b,
+			Object:    nt.BlankNode("b2"),
+		}
+		t21 := nt.Triple{
+			Subject:   nt.BlankNode("b2"),
+			Predicate: b,
+			Object:    nt.BlankNode("b1"),
+		}
+		if (nt.Document{t12, t21}).Equal(nt.Document{t12}) {
+			t.Error()
+		}
+		if (nt.Document{t12, t21}).Equal(nt.Document{t12, t12}) {
+			t.Error()
+		}
+		if !(nt.Document{t12, t21}).Equal(nt.Document{t21, t12}) {
+			t.Error()
+		}
+		if (nt.Document{t12, t21}).Equal(nt.Document{t21, nt.Triple{
+			Subject:   nt.BlankNode("b2"),
+			Predicate: b,
+			Object:    nt.BlankNode("b2"), // Different reference.
+		}}) {
+			t.Error()
+		}
+	})
 }
 
 func TestExamples(t *testing.T) {
@@ -84,12 +112,12 @@ func TestExamples(t *testing.T) {
 		}
 
 		{ // fmt.Stringer
-			doc, err := nt.ParseDocument(doc.String())
+			doc2, err := nt.ParseDocument(doc.String())
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(doc) != test.triples {
-				t.Error(len(doc))
+			if !doc.Equal(doc2) {
+				t.Error(doc, doc2)
 			}
 		}
 	}
@@ -123,9 +151,9 @@ func TestSuite(t *testing.T) {
 					report.AddTest(e.Name, testsuite.Failed)
 					t.Fatal(err)
 				}
-				if len(doc) != len(doc2) {
+				if !doc.Equal(doc2) {
 					report.AddTest(e.Name, testsuite.Failed)
-					t.Fatal(len(doc), len(doc2))
+					t.Fatal(doc, doc2)
 				}
 
 				report.AddTest(e.Name, testsuite.Passed)

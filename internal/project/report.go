@@ -54,7 +54,7 @@ func (r *Report) AddTest(name string, outcome testsuite.OutcomeValue) {
 		Result: testsuite.TestResult{
 			Date: ttl.StringLiteral{
 				Value:       time.Now().In(time.UTC).Format("2006-01-02-0700"),
-				DatatypeIRI: "xsd:date",
+				DatatypeIRI: &ttl.IRI{Prefixed: true, Value: "xsd:date"},
 			},
 			Outcome: outcome,
 		},

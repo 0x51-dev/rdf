@@ -6,6 +6,8 @@ import (
 	nt "github.com/0x51-dev/rdf/ntriples"
 	"github.com/0x51-dev/upeg/parser"
 	"github.com/0x51-dev/upeg/parser/op"
+	"slices"
+	"sort"
 	"strings"
 )
 
@@ -47,15 +49,16 @@ func parseDocument(n *parser.Node) (Document, error) {
 	if n.Name != "Document" {
 		return nil, fmt.Errorf("document: unknown %s", n.Name)
 	}
-	var quads []Quad
+	var document Document
 	for _, n := range n.Children() {
 		quad, err := ParseQuad(n)
 		if err != nil {
 			return nil, err
 		}
-		quads = append(quads, *quad)
+		document = append(document, *quad)
 	}
-	return quads, nil
+	sort.Sort(document)
+	return document, nil
 }
 
 func (d Document) Equal(other Document) bool {
@@ -75,12 +78,55 @@ func (d Document) Equal(other Document) bool {
 	return true
 }
 
-func (d Document) Graphs() map[nt.Subject]nt.Document {
-	g := make(map[nt.Subject]nt.Document)
+func (d Document) Graphs() map[string]nt.Document {
+	g := make(map[string]nt.Document)
 	for _, q := range d {
-		g[q.GraphLabel] = append(g[q.GraphLabel], q.Triple)
+		var graphLabel string
+		if q.GraphLabel != nil {
+			graphLabel = q.GraphLabel.String()
+		}
+		g[graphLabel] = append(g[graphLabel], q.Triple)
 	}
 	return g
+}
+
+func (d Document) Len() int {
+	return len(d)
+}
+
+func (d Document) Less(i, j int) bool {
+	if d[i].GraphLabel == nil && d[j].GraphLabel != nil {
+		return true
+	} else if d[i].GraphLabel != nil && d[j].GraphLabel == nil {
+		return false
+	}
+	return d[i].String() < d[j].String()
+}
+
+func (d Document) NormalizeBlankNodes() Document {
+	var keys []nt.Subject
+	for _, v := range d {
+		if !slices.Contains(keys, v.GraphLabel) {
+			keys = append(keys, v.GraphLabel)
+		}
+	}
+
+	g := d.Graphs()
+	var document Document
+	for _, k := range keys {
+		var key string
+		if k != nil {
+			key = k.String()
+		}
+		v := g[key].NormalizeBlankNodes()
+		for _, t := range v {
+			document = append(document, Quad{
+				Triple:     t,
+				GraphLabel: k,
+			})
+		}
+	}
+	return document
 }
 
 func (d Document) String() string {
@@ -89,6 +135,10 @@ func (d Document) String() string {
 		s += fmt.Sprintf("%s\n", q)
 	}
 	return s
+}
+
+func (d Document) Swap(i, j int) {
+	d[i], d[j] = d[j], d[i]
 }
 
 type Quad struct {

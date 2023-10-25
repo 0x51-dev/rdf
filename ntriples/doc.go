@@ -6,6 +6,7 @@ import (
 	"github.com/0x51-dev/rids/iri"
 	"github.com/0x51-dev/upeg/parser"
 	"github.com/0x51-dev/upeg/parser/op"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -74,31 +75,73 @@ func parseDocument(n *parser.Node) (Document, error) {
 	if n.Name != "Document" {
 		return nil, fmt.Errorf("document: unknown %s", n.Name)
 	}
-	var triples []Triple
+	var document Document
 	for _, n := range n.Children() {
 		t, err := ParseTriple(n)
 		if err != nil {
 			return nil, err
 		}
-		triples = append(triples, *t)
+		document = append(document, *t)
 	}
-	return triples, nil
+	sort.Sort(document)
+	return document, nil
 }
 
-// Equal returns true if the document is equal to the given value. Both document will be assumed sorted.
+// Equal returns true if the document is equal to the given value.
 // NOTE: blank nodes will be compared, not by value, but by relation in the document.
 func (d Document) Equal(other Document) bool {
 	if len(d) != len(other) {
 		return false
 	}
-	d, o := d.normalizeBlankNodes(), other.normalizeBlankNodes()
-	for i := range d {
-		t0, t1 := d[i], o[i]
+	d, o := d.NormalizeBlankNodes(), other.NormalizeBlankNodes()
+	for i, t0 := range d {
+		t1 := o[i]
 		if !t0.equal(t1, true) {
 			return false
 		}
 	}
 	return true
+}
+
+func (d Document) Len() int {
+	return len(d)
+}
+
+func (d Document) Less(i, j int) bool {
+	return d[i].String() < d[j].String()
+}
+
+func (d Document) NormalizeBlankNodes() (n Document) {
+	var i int
+	mapping := make(map[string]string)
+	f := func(b fmt.Stringer) *BlankNode {
+		if bn, ok := mapping[b.String()]; ok {
+			return (*BlankNode)(&bn)
+		}
+		bn := fmt.Sprintf("b%d", i)
+		mapping[b.String()] = bn
+		i++
+		return (*BlankNode)(&bn)
+	}
+	for _, t := range d {
+		subject := t.Subject
+		switch b := t.Subject.(type) {
+		case BlankNode, *BlankNode:
+			subject = f(b)
+		}
+		predicate := t.Predicate
+		object := t.Object
+		switch b := t.Object.(type) {
+		case BlankNode, *BlankNode:
+			object = f(b)
+		}
+		n = append(n, Triple{
+			Subject:   subject,
+			Predicate: predicate,
+			Object:    object,
+		})
+	}
+	return
 }
 
 func (d Document) String() string {
@@ -109,40 +152,8 @@ func (d Document) String() string {
 	return s
 }
 
-func (d Document) normalizeBlankNodes() (n Document) {
-	var i int
-	mapping := make(map[string]string)
-	for _, t := range d {
-		subject := t.Subject
-		if b, ok := t.Subject.(BlankNode); ok {
-			if bn, ok := mapping[string(b)]; !ok {
-				bn = fmt.Sprintf("%d", i)
-				mapping[string(b)] = bn
-				subject = (*BlankNode)(&bn)
-				i++
-			} else {
-				subject = (*BlankNode)(&bn)
-			}
-		}
-		predicate := t.Predicate
-		object := t.Object
-		if b, ok := t.Object.(BlankNode); ok {
-			if bn, ok := mapping[string(b)]; !ok {
-				bn = fmt.Sprintf("%d", i)
-				mapping[string(b)] = bn
-				object = (*BlankNode)(&bn)
-				i++
-			} else {
-				object = (*BlankNode)(&bn)
-			}
-		}
-		n = append(n, Triple{
-			Subject:   subject,
-			Predicate: predicate,
-			Object:    object,
-		})
-	}
-	return
+func (d Document) Swap(i, j int) {
+	d[i], d[j] = d[j], d[i]
 }
 
 type IRIReference string
@@ -201,7 +212,15 @@ func (r IRIReference) String() string {
 }
 
 func (r IRIReference) equal(other IRIReference) bool {
-	return r == other
+	rEsc, err := strconv.Unquote(`"` + string(r) + `"`)
+	if err != nil {
+		return r == other
+	}
+	oEsc, err := strconv.Unquote(`"` + string(other) + `"`)
+	if err != nil {
+		return r == other
+	}
+	return rEsc == oEsc
 }
 
 func (r IRIReference) object() {}
@@ -368,11 +387,11 @@ func (t Triple) String() string {
 
 func (t Triple) equal(other Triple, checkBlankNode bool) bool {
 	switch t.Subject.(type) {
-	case BlankNode:
+	case BlankNode, *BlankNode:
 		if !checkBlankNode {
-			_, isBn := other.Subject.(BlankNode)
-			_, isBnPtr := other.Subject.(*BlankNode)
-			if !isBn && !isBnPtr {
+			switch other.Subject.(type) {
+			case BlankNode, *BlankNode:
+			default:
 				return false
 			}
 		} else {
@@ -391,15 +410,15 @@ func (t Triple) equal(other Triple, checkBlankNode bool) bool {
 	}
 
 	switch t.Object.(type) {
-	case BlankNode:
+	case BlankNode, *BlankNode:
 		if !checkBlankNode {
-			_, isBn := other.Subject.(BlankNode)
-			_, isBnPtr := other.Subject.(*BlankNode)
-			if !isBn && !isBnPtr {
+			switch other.Object.(type) {
+			case BlankNode, *BlankNode:
+			default:
 				return false
 			}
 		} else {
-			if !t.Subject.Equal(other.Subject) {
+			if !t.Object.Equal(other.Object) {
 				return false
 			}
 		}
